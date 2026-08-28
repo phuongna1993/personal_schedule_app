@@ -1,0 +1,619 @@
+<title>Bảng phối màu — Nhật ký cá nhân</title>
+<style>
+/* ============================================================
+   SHARED SPINE — semantic roles only. Each .theme-* block below
+   redefines the custom properties with its own hex values.
+   Roles: --bg --surface --surface-alt --border --text-1 --text-2
+          --text-3 --accent --accent-ink --success --highlight
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #EDEAE3;
+  color: #2B2620;
+  padding: 40px 24px 80px;
+}
+
+.page { max-width: 1360px; margin: 0 auto; }
+
+.intro { max-width: 760px; margin: 0 0 40px; }
+.intro h1 { font-size: 24px; margin: 0 0 10px; letter-spacing: -0.01em; }
+.intro p { font-size: 14.5px; line-height: 1.6; color: #5A544A; margin: 0; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+  gap: 28px;
+}
+.variation.span-full { grid-column: 1 / -1; }
+
+/* --- Variation shell (theme-neutral chrome around each sample) --- */
+.variation {
+  border-radius: 18px;
+  padding: 22px 22px 26px;
+  background: #FFFFFF;
+  border: 1px solid #E2DED4;
+}
+.variation-header { margin-bottom: 14px; }
+.variation-header h2 {
+  font-size: 16.5px;
+  margin: 0 0 4px;
+  color: #2B2620;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.variation-header .num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #A79E8E;
+}
+.variation-header .reg {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #8A8272;
+  font-style: italic;
+}
+
+/* --- Token chips --- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid #E6E2D8;
+  background: #FBFAF7;
+  font-size: 10.5px;
+  color: #6B6558;
+}
+.chip .swatch {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.12);
+  flex-shrink: 0;
+}
+.chip .lbl { font-weight: 600; color: #3B362D; }
+.chip .hex { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: -0.02em; }
+
+/* ============================================================
+   APP MOCK — one realistic UI snippet, reused per theme, styled
+   entirely through the custom properties set on the .theme-* box.
+   ============================================================ */
+.app-card {
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 18px 18px 20px;
+  border: 1px solid var(--border);
+}
+.app-card .app-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+.app-card .app-head h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-1);
+  font-weight: 700;
+}
+.app-card .app-head .date {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.app-card .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 13px 14px;
+  margin-bottom: 10px;
+}
+.app-card .panel:last-child { margin-bottom: 0; }
+.app-card .panel h4 {
+  margin: 0 0 9px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+/* checklist */
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-1);
+  padding: 5px 0;
+}
+.task-row .box {
+  width: 16px; height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--accent);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  color: var(--accent-ink);
+}
+.task-row.done .box { background: var(--accent); }
+.task-row.done span.label { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-3); }
+
+/* expense row */
+.expense-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.expense-meta .cat {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+.expense-meta .note { font-size: 12px; color: var(--text-2); }
+.expense-amount { font-size: 17px; font-weight: 700; color: var(--text-1); white-space: nowrap; }
+
+/* meal */
+.meal-main { font-size: 14px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+.meal-sub { font-size: 12px; color: var(--text-2); }
+
+/* study */
+.study-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.study-row:last-child { margin-bottom: 0; }
+.level-badge {
+  font-size: 11px; font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.streak {
+  font-size: 12.5px; font-weight: 700;
+  color: var(--highlight);
+}
+.progress-track {
+  height: 6px; border-radius: 999px;
+  background: var(--surface-alt);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.progress-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+.roadmap-step { font-size: 12px; color: var(--text-2); }
+.roadmap-step b { color: var(--text-1); }
+
+/* =========================
+   1) ĐẤT NUNG — Terracotta & Cream
+   warm-earthy, grounded, unhurried
+   --bg #FAF3EA  --surface #FFFCF7  --surface-alt #F3E4D3
+   --border #E8D5BE
+   --text-1 #4A3428  --text-2 #7A5C46  --text-3 #A68A6F
+   --accent #C1694F  --accent-ink #FFFFFF
+   --success #7C9070  --highlight #C1694F
+   ========================= */
+.theme-terracotta {
+  --bg: #FAF3EA; --surface: #FFFCF7; --surface-alt: #F3E4D3;
+  --border: #E8D5BE;
+  --text-1: #4A3428; --text-2: #7A5C46; --text-3: #A68A6F;
+  --accent: #C1694F; --accent-ink: #FFFFFF;
+  --success: #7C9070; --highlight: #C1694F;
+}
+
+/* =========================
+   2) LÁ XÔ THƠM — Muted Sage
+   calm, breathable, quiet-garden restfulness
+   --bg #F4F6F1  --surface #FFFFFF  --surface-alt #E7ECE1
+   --border #D3DDC9
+   --text-1 #3A4A38  --text-2 #5C6E56  --text-3 #8B9A82
+   --accent #7A9471  --accent-ink #FFFFFF
+   --success #6B8F5E  --highlight #C9922A
+   ========================= */
+.theme-sage {
+  --bg: #F4F6F1; --surface: #FFFFFF; --surface-alt: #E7ECE1;
+  --border: #D3DDC9;
+  --text-1: #3A4A38; --text-2: #5C6E56; --text-3: #8B9A82;
+  --accent: #7A9471; --accent-ink: #FFFFFF;
+  --success: #6B8F5E; --highlight: #C9922A;
+}
+
+/* =========================
+   3) HOÀNG HÔN TÍM — Dusty Rose & Lavender
+   tender, soft-twilight, a little wistful
+   --bg #FBF5F6  --surface #FFFFFF  --surface-alt #F0E3E8
+   --border #E3CFDA
+   --text-1 #453142  --text-2 #6E5568  --text-3 #9C8598
+   --accent #A6708C  --accent-ink #FFFFFF
+   --success #8A9B7E  --highlight #B8895E
+   ========================= */
+.theme-dusk {
+  --bg: #FBF5F6; --surface: #FFFFFF; --surface-alt: #F0E3E8;
+  --border: #E3CFDA;
+  --text-1: #453142; --text-2: #6E5568; --text-3: #9C8598;
+  --accent: #A6708C; --accent-ink: #FFFFFF;
+  --success: #8A9B7E; --highlight: #B8895E;
+}
+
+/* =========================
+   4) GIẤY KRAFT — Warm Neutral, single honey accent
+   minimal, paper-quiet, unfussy focus
+   --bg #F5F1EA  --surface #FCFAF6  --surface-alt #EAE3D6
+   --border #DDD3BF
+   --text-1 #3D3730  --text-2 #665D4F  --text-3 #948A78
+   --accent #C98A2C  --accent-ink #FFFFFF
+   --success #6B7A4F  --highlight #C98A2C   (same as accent — single-accent rule)
+   ========================= */
+.theme-kraft {
+  --bg: #F5F1EA; --surface: #FCFAF6; --surface-alt: #EAE3D6;
+  --border: #DDD3BF;
+  --text-1: #3D3730; --text-2: #665D4F; --text-3: #948A78;
+  --accent: #C98A2C; --accent-ink: #FFFFFF;
+  --success: #6B7A4F; --highlight: #C98A2C;
+}
+
+/* =========================
+   5) TRÀ SEN — Cream & Muted Teal
+   fresh, clear-headed, brisk calm
+   --bg #F7F5EF  --surface #FFFFFF  --surface-alt #E3EEE9
+   --border #CFE0D8
+   --text-1 #2E3B38  --text-2 #536259  --text-3 #8A9A92
+   --accent #3F7C74  --accent-ink #FFFFFF
+   --success #4C8567  --highlight #D98E44
+   ========================= */
+.theme-tea {
+  --bg: #F7F5EF; --surface: #FFFFFF; --surface-alt: #E3EEE9;
+  --border: #CFE0D8;
+  --text-1: #2E3B38; --text-2: #536259; --text-3: #8A9A92;
+  --accent: #3F7C74; --accent-ink: #FFFFFF;
+  --success: #4C8567; --highlight: #D98E44;
+}
+
+/* =========================
+   6) MẬT ONG CHIỀU TÀ — Honey Dusk (light + dark pass)
+   same honey hue carried from daylight into evening lamplight —
+   fits the routine: starts before dinner, finishes after bedtime
+   LIGHT: --bg #FBF4E7 --surface #FFFFFF --surface-alt #F3E6CC
+          --border #E8D5A8 --text-1 #4A3B22 --text-2 #78633E
+          --text-3 #A6906A --accent #D99A3D --accent-ink #FFFFFF
+          --success #7E9B5E --highlight #D99A3D
+   DARK:  --bg #211C15 --surface #2B241A --surface-alt #362D1F
+          --border #4A3E2A --text-1 #F3E6CC --text-2 #C7B48C
+          --text-3 #8F7F60 --accent #E0A94C --accent-ink #211C15
+          --success #93B473 --highlight #E0A94C
+   ========================= */
+.theme-honey.mode-light {
+  --bg: #FBF4E7; --surface: #FFFFFF; --surface-alt: #F3E6CC;
+  --border: #E8D5A8;
+  --text-1: #4A3B22; --text-2: #78633E; --text-3: #A6906A;
+  --accent: #D99A3D; --accent-ink: #FFFFFF;
+  --success: #7E9B5E; --highlight: #D99A3D;
+}
+.theme-honey.mode-dark {
+  --bg: #211C15; --surface: #2B241A; --surface-alt: #362D1F;
+  --border: #4A3E2A;
+  --text-1: #F3E6CC; --text-2: #C7B48C; --text-3: #8F7F60;
+  --accent: #E0A94C; --accent-ink: #211C15;
+  --success: #93B473; --highlight: #E0A94C;
+}
+
+.pair-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pair-label {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #A79E8E; margin-bottom: 8px;
+}
+</style>
+
+<div class="page">
+
+  <div class="intro">
+    <h1>Bảng phối màu — ứng dụng nhật ký buổi tối</h1>
+    <p>6 phương án cho một ứng dụng cá nhân dùng vài phút mỗi tối sau bữa cơm: việc cần làm, chi tiêu, thực đơn, tiến độ học tiếng Anh &amp; automation testing. Mỗi phương án mang một sắc thái cảm xúc riêng — dịu, ấm, gần gũi, không lòe loẹt, không "hồng bé gái", không lạnh như dashboard công sở.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- 1. TERRACOTTA -->
+    <section class="variation theme-terracotta">
+      <div class="variation-header">
+        <h2><span class="num">01</span> Đất Nung <span class="reg">— ấm áp, mộc mạc, như nắng chiều trên gốm đất nung</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#FAF3EA"></span><span class="lbl">Nền</span><span class="hex">#FAF3EA</span></span>
+        <span class="chip"><span class="swatch" style="background:#FFFCF7"></span><span class="lbl">Bề mặt</span><span class="hex">#FFFCF7</span></span>
+        <span class="chip"><span class="swatch" style="background:#F3E4D3"></span><span class="lbl">Bề mặt phụ</span><span class="hex">#F3E4D3</span></span>
+        <span class="chip"><span class="swatch" style="background:#E8D5BE"></span><span class="lbl">Viền</span><span class="hex">#E8D5BE</span></span>
+        <span class="chip"><span class="swatch" style="background:#4A3428"></span><span class="lbl">Chữ chính</span><span class="hex">#4A3428</span></span>
+        <span class="chip"><span class="swatch" style="background:#7A5C46"></span><span class="lbl">Chữ phụ</span><span class="hex">#7A5C46</span></span>
+        <span class="chip"><span class="swatch" style="background:#C1694F"></span><span class="lbl">Nhấn</span><span class="hex">#C1694F</span></span>
+        <span class="chip"><span class="swatch" style="background:#7C9070"></span><span class="lbl">Thành công</span><span class="hex">#7C9070</span></span>
+      </div>
+      <div class="app-card">
+        <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+        <div class="panel">
+          <h4>Việc cần làm hôm nay</h4>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5: Present Perfect</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+        </div>
+        <div class="panel">
+          <h4>Chi tiêu vừa ghi</h4>
+          <div class="expense-row">
+            <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+            <div class="expense-amount">185.000 ₫</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Thực đơn ngày mai</h4>
+          <div class="meal-main">Canh chua cá lóc</div>
+          <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+        </div>
+        <div class="panel">
+          <h4>Tiến độ học tập</h4>
+          <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày liên tiếp</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+          <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Viết test case với Selenium WebDriver</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SAGE -->
+    <section class="variation theme-sage">
+      <div class="variation-header">
+        <h2><span class="num">02</span> Lá Xô Thơm <span class="reg">— tĩnh lặng, thoáng đãng, như một buổi sáng trong vườn</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#F4F6F1"></span><span class="lbl">Nền</span><span class="hex">#F4F6F1</span></span>
+        <span class="chip"><span class="swatch" style="background:#FFFFFF"></span><span class="lbl">Bề mặt</span><span class="hex">#FFFFFF</span></span>
+        <span class="chip"><span class="swatch" style="background:#E7ECE1"></span><span class="lbl">Bề mặt phụ</span><span class="hex">#E7ECE1</span></span>
+        <span class="chip"><span class="swatch" style="background:#D3DDC9"></span><span class="lbl">Viền</span><span class="hex">#D3DDC9</span></span>
+        <span class="chip"><span class="swatch" style="background:#3A4A38"></span><span class="lbl">Chữ chính</span><span class="hex">#3A4A38</span></span>
+        <span class="chip"><span class="swatch" style="background:#5C6E56"></span><span class="lbl">Chữ phụ</span><span class="hex">#5C6E56</span></span>
+        <span class="chip"><span class="swatch" style="background:#7A9471"></span><span class="lbl">Nhấn</span><span class="hex">#7A9471</span></span>
+        <span class="chip"><span class="swatch" style="background:#C9922A"></span><span class="lbl">Điểm nhấn streak</span><span class="hex">#C9922A</span></span>
+      </div>
+      <div class="app-card">
+        <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+        <div class="panel">
+          <h4>Việc cần làm hôm nay</h4>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5: Present Perfect</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+        </div>
+        <div class="panel">
+          <h4>Chi tiêu vừa ghi</h4>
+          <div class="expense-row">
+            <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+            <div class="expense-amount">185.000 ₫</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Thực đơn ngày mai</h4>
+          <div class="meal-main">Canh chua cá lóc</div>
+          <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+        </div>
+        <div class="panel">
+          <h4>Tiến độ học tập</h4>
+          <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày liên tiếp</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+          <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Viết test case với Selenium WebDriver</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. DUSTY ROSE / LAVENDER -->
+    <section class="variation theme-dusk">
+      <div class="variation-header">
+        <h2><span class="num">03</span> Hoàng Hôn Tím <span class="reg">— dịu dàng, hoài niệm, như trời chạng vạng</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#FBF5F6"></span><span class="lbl">Nền</span><span class="hex">#FBF5F6</span></span>
+        <span class="chip"><span class="swatch" style="background:#FFFFFF"></span><span class="lbl">Bề mặt</span><span class="hex">#FFFFFF</span></span>
+        <span class="chip"><span class="swatch" style="background:#F0E3E8"></span><span class="lbl">Bề mặt phụ</span><span class="hex">#F0E3E8</span></span>
+        <span class="chip"><span class="swatch" style="background:#E3CFDA"></span><span class="lbl">Viền</span><span class="hex">#E3CFDA</span></span>
+        <span class="chip"><span class="swatch" style="background:#453142"></span><span class="lbl">Chữ chính</span><span class="hex">#453142</span></span>
+        <span class="chip"><span class="swatch" style="background:#6E5568"></span><span class="lbl">Chữ phụ</span><span class="hex">#6E5568</span></span>
+        <span class="chip"><span class="swatch" style="background:#A6708C"></span><span class="lbl">Nhấn</span><span class="hex">#A6708C</span></span>
+        <span class="chip"><span class="swatch" style="background:#B8895E"></span><span class="lbl">Điểm nhấn streak</span><span class="hex">#B8895E</span></span>
+      </div>
+      <div class="app-card">
+        <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+        <div class="panel">
+          <h4>Việc cần làm hôm nay</h4>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5: Present Perfect</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+        </div>
+        <div class="panel">
+          <h4>Chi tiêu vừa ghi</h4>
+          <div class="expense-row">
+            <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+            <div class="expense-amount">185.000 ₫</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Thực đơn ngày mai</h4>
+          <div class="meal-main">Canh chua cá lóc</div>
+          <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+        </div>
+        <div class="panel">
+          <h4>Tiến độ học tập</h4>
+          <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày liên tiếp</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+          <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Viết test case với Selenium WebDriver</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. KRAFT -->
+    <section class="variation theme-kraft">
+      <div class="variation-header">
+        <h2><span class="num">04</span> Giấy Kraft <span class="reg">— tối giản, tĩnh tâm, một màu nhấn duy nhất, như trang sổ tay</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#F5F1EA"></span><span class="lbl">Nền</span><span class="hex">#F5F1EA</span></span>
+        <span class="chip"><span class="swatch" style="background:#FCFAF6"></span><span class="lbl">Bề mặt</span><span class="hex">#FCFAF6</span></span>
+        <span class="chip"><span class="swatch" style="background:#EAE3D6"></span><span class="lbl">Bề mặt phụ</span><span class="hex">#EAE3D6</span></span>
+        <span class="chip"><span class="swatch" style="background:#DDD3BF"></span><span class="lbl">Viền</span><span class="hex">#DDD3BF</span></span>
+        <span class="chip"><span class="swatch" style="background:#3D3730"></span><span class="lbl">Chữ chính</span><span class="hex">#3D3730</span></span>
+        <span class="chip"><span class="swatch" style="background:#665D4F"></span><span class="lbl">Chữ phụ</span><span class="hex">#665D4F</span></span>
+        <span class="chip"><span class="swatch" style="background:#C98A2C"></span><span class="lbl">Nhấn (duy nhất)</span><span class="hex">#C98A2C</span></span>
+      </div>
+      <div class="app-card">
+        <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+        <div class="panel">
+          <h4>Việc cần làm hôm nay</h4>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5: Present Perfect</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+        </div>
+        <div class="panel">
+          <h4>Chi tiêu vừa ghi</h4>
+          <div class="expense-row">
+            <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+            <div class="expense-amount">185.000 ₫</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Thực đơn ngày mai</h4>
+          <div class="meal-main">Canh chua cá lóc</div>
+          <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+        </div>
+        <div class="panel">
+          <h4>Tiến độ học tập</h4>
+          <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày liên tiếp</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+          <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Viết test case với Selenium WebDriver</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. TEA / TEAL -->
+    <section class="variation theme-tea">
+      <div class="variation-header">
+        <h2><span class="num">05</span> Trà Sen <span class="reg">— tươi mới, minh mẫn, an yên như tách trà sen buổi tối</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#F7F5EF"></span><span class="lbl">Nền</span><span class="hex">#F7F5EF</span></span>
+        <span class="chip"><span class="swatch" style="background:#FFFFFF"></span><span class="lbl">Bề mặt</span><span class="hex">#FFFFFF</span></span>
+        <span class="chip"><span class="swatch" style="background:#E3EEE9"></span><span class="lbl">Bề mặt phụ</span><span class="hex">#E3EEE9</span></span>
+        <span class="chip"><span class="swatch" style="background:#CFE0D8"></span><span class="lbl">Viền</span><span class="hex">#CFE0D8</span></span>
+        <span class="chip"><span class="swatch" style="background:#2E3B38"></span><span class="lbl">Chữ chính</span><span class="hex">#2E3B38</span></span>
+        <span class="chip"><span class="swatch" style="background:#536259"></span><span class="lbl">Chữ phụ</span><span class="hex">#536259</span></span>
+        <span class="chip"><span class="swatch" style="background:#3F7C74"></span><span class="lbl">Nhấn</span><span class="hex">#3F7C74</span></span>
+        <span class="chip"><span class="swatch" style="background:#D98E44"></span><span class="lbl">Điểm nhấn streak</span><span class="hex">#D98E44</span></span>
+      </div>
+      <div class="app-card">
+        <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+        <div class="panel">
+          <h4>Việc cần làm hôm nay</h4>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+          <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5: Present Perfect</span></div>
+          <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+        </div>
+        <div class="panel">
+          <h4>Chi tiêu vừa ghi</h4>
+          <div class="expense-row">
+            <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+            <div class="expense-amount">185.000 ₫</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Thực đơn ngày mai</h4>
+          <div class="meal-main">Canh chua cá lóc</div>
+          <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+        </div>
+        <div class="panel">
+          <h4>Tiến độ học tập</h4>
+          <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày liên tiếp</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+          <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Viết test case với Selenium WebDriver</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. HONEY DUSK — light + dark pair -->
+    <section class="variation span-full theme-honey">
+      <div class="variation-header">
+        <h2><span class="num">06</span> Mật Ong Chiều Tà <span class="reg">— cùng một tông mật ong, theo mình từ nắng chiều sang đèn ngủ ban đêm</span></h2>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="swatch" style="background:#FBF4E7"></span><span class="lbl">Nền (sáng)</span><span class="hex">#FBF4E7</span></span>
+        <span class="chip"><span class="swatch" style="background:#F3E6CC"></span><span class="lbl">Bề mặt phụ (sáng)</span><span class="hex">#F3E6CC</span></span>
+        <span class="chip"><span class="swatch" style="background:#4A3B22"></span><span class="lbl">Chữ chính (sáng)</span><span class="hex">#4A3B22</span></span>
+        <span class="chip"><span class="swatch" style="background:#D99A3D"></span><span class="lbl">Nhấn</span><span class="hex">#D99A3D</span></span>
+        <span class="chip"><span class="swatch" style="background:#211C15"></span><span class="lbl">Nền (tối)</span><span class="hex">#211C15</span></span>
+        <span class="chip"><span class="swatch" style="background:#362D1F"></span><span class="lbl">Bề mặt phụ (tối)</span><span class="hex">#362D1F</span></span>
+        <span class="chip"><span class="swatch" style="background:#F3E6CC"></span><span class="lbl">Chữ chính (tối)</span><span class="hex">#F3E6CC</span></span>
+        <span class="chip"><span class="swatch" style="background:#E0A94C"></span><span class="lbl">Nhấn (tối)</span><span class="hex">#E0A94C</span></span>
+      </div>
+      <div class="pair-row">
+        <div>
+          <div class="pair-label">Trước giờ cơm — chế độ sáng</div>
+          <div class="app-card mode-light">
+            <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+            <div class="panel">
+              <h4>Việc cần làm hôm nay</h4>
+              <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+              <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5</span></div>
+              <div class="task-row"><span class="box"></span><span class="label">Ghi lại chi tiêu trong ngày</span></div>
+            </div>
+            <div class="panel">
+              <h4>Chi tiêu vừa ghi</h4>
+              <div class="expense-row">
+                <div class="expense-meta"><span class="cat">Ăn uống</span><div class="note">Rau củ + thịt heo · chợ Bà Chiểu</div></div>
+                <div class="expense-amount">185.000 ₫</div>
+              </div>
+            </div>
+            <div class="panel">
+              <h4>Tiến độ học tập</h4>
+              <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày</span></div>
+              <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="pair-label">Sau khi con ngủ — chế độ tối</div>
+          <div class="app-card mode-dark">
+            <div class="app-head"><h3>Tối nay của mình</h3><span class="date">Thứ Ba, 19/8</span></div>
+            <div class="panel">
+              <h4>Việc cần làm hôm nay</h4>
+              <div class="task-row done"><span class="box">✓</span><span class="label">Đón bé Bống ở trường lúc 17h</span></div>
+              <div class="task-row done"><span class="box">✓</span><span class="label">Pha sữa cho bé Bin</span></div>
+              <div class="task-row"><span class="box"></span><span class="label">Học tiếng Anh 20 phút — Unit 5</span></div>
+            </div>
+            <div class="panel">
+              <h4>Thực đơn ngày mai</h4>
+              <div class="meal-main">Canh chua cá lóc</div>
+              <div class="meal-sub">Kèm thịt kho trứng, rau muống xào tỏi</div>
+            </div>
+            <div class="panel">
+              <h4>Tiến độ học tập</h4>
+              <div class="study-row"><span class="level-badge">Tiếng Anh A2 → B1</span><span class="streak">🔥 12 ngày</span></div>
+              <div class="progress-track"><div class="progress-fill" style="width:64%"></div></div>
+              <div class="study-row" style="margin-top:10px"><span class="roadmap-step">Automation testing · Bước <b>3/7</b> — Selenium WebDriver</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Hướng C — Góc Bếp Nhỏ (Warm Editorial)</title>
+<style>
+/* ============================================================
+   HƯỚNG C — "GÓC BẾP NHỎ" (warm editorial / magazine layout,
+   featured module + secondary tiles)
+   Tokens (mandatory palette, không đổi hex):
+     --bg #F5F1EA  --surface #FCFAF6  --surface-alt #EAE3D6
+     --border #DDD3BF  --text-1 #3D3730  --text-2 #665D4F
+     --text-3 #948A78  --accent/--highlight #7A9471  --accent-ink #FFFFFF
+     --success #6B8F5E
+   ============================================================ */
+:root{
+  --bg:#F5F1EA; --surface:#FCFAF6; --surface-alt:#EAE3D6; --border:#DDD3BF;
+  --text-1:#3D3730; --text-2:#665D4F; --text-3:#948A78;
+  --accent:#7A9471; --accent-ink:#FFFFFF; --success:#6B8F5E;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; padding:40px 24px 64px; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); display:flex; flex-direction:column; align-items:center; gap:28px;
+}
+.page-head{max-width:900px; text-align:center;}
+.tag-row{display:flex; gap:8px; justify-content:center; margin-bottom:10px;}
+.tag{font-size:11px; font-weight:600; color:var(--accent); background:var(--surface-alt); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+.page-head h1{font-size:22px; font-weight:700; margin:0 0 6px;}
+.page-head p.rationale{font-size:14.5px; line-height:1.7; color:var(--text-2); margin:0; text-align:left;}
+
+.browser-frame{
+  width:100%; max-width:1180px; background:var(--surface);
+  border:1px solid var(--border); border-radius:14px;
+  box-shadow:0 30px 60px -25px rgba(61,55,48,.28);
+  overflow:hidden; position:relative;
+}
+.chrome-bar{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--surface-alt); border-bottom:1px solid var(--border);}
+.dots{display:flex; gap:6px;}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--text-3); opacity:.3;}
+.addr{flex:1; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12px; color:var(--text-3); text-align:center;}
+
+.app{background:var(--bg); padding:30px 40px 90px; position:relative;}
+
+.masthead{display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid var(--text-1); padding-bottom:12px; margin-bottom:26px;}
+.masthead .logo{font-size:20px; font-weight:800; letter-spacing:2px;}
+.masthead nav{display:flex; gap:22px; font-size:11.5px; color:var(--text-3); letter-spacing:.5px;}
+.masthead nav .cur{color:var(--text-1); font-weight:700; border-bottom:2px solid var(--accent); padding-bottom:12px;}
+
+.hero{
+  background:var(--surface-alt); border-radius:20px; padding:34px 38px; margin-bottom:24px;
+  display:grid; grid-template-columns:1.3fr 1fr; gap:30px; align-items:center;
+}
+.kicker{font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--accent); text-transform:uppercase; margin-bottom:10px;}
+.headline{font-family:Georgia,'Times New Roman',serif; font-size:40px; font-weight:700; line-height:1.05; margin:0 0 10px;}
+.byline{font-size:13.5px; color:var(--text-2); margin-bottom:16px;}
+.byline b{color:var(--text-1);}
+.chip-row{display:flex; gap:8px; flex-wrap:wrap;}
+.chip{font-size:11.5px; background:var(--surface); border:1px solid var(--border); border-radius:99px; padding:5px 12px; color:var(--text-2);}
+.hero-side{border-left:1px solid var(--border); padding-left:26px;}
+.hero-side .label{font-size:11px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;}
+.hero-side .sub-line{font-size:13px; padding:5px 0; border-bottom:1px dashed var(--border); color:var(--text-1);}
+.hero-side .sub-line:last-child{border-bottom:none;}
+
+.tiles{display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;}
+.tile{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.tile .kicker{margin-bottom:8px;}
+.tile h3{margin:0 0 8px; font-size:15px; font-weight:700;}
+.tile .big{font-family:Georgia,serif; font-size:24px; font-weight:700; margin-bottom:4px;}
+.tile .small{font-size:12px; color:var(--text-2); line-height:1.5;}
+.tile .line{display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0; border-bottom:1px dashed var(--border);}
+.tile .line:last-child{border-bottom:none;}
+.tile .warn{color:var(--text-1); font-weight:700;}
+.tile .bar{margin-top:8px; height:5px; background:var(--surface-alt); border-radius:99px; overflow:hidden;}
+.tile .bar span{display:block; height:100%; background:var(--accent);}
+
+/* secondary screen peek: dish bank */
+.peek{
+  position:absolute; left:40px; bottom:-26px; width:280px; background:var(--surface);
+  border:1px solid var(--border); border-radius:16px; padding:18px 20px;
+  box-shadow:0 20px 40px -18px rgba(61,55,48,.35); transform:rotate(-1.2deg);
+}
+.peek .kicker{margin-bottom:6px;}
+.peek h4{margin:0 0 10px; font-size:13.5px; font-weight:700;}
+.peek .filter{display:inline-block; font-size:10.5px; background:var(--surface-alt); color:var(--accent); border-radius:99px; padding:2px 9px; margin-bottom:10px; font-weight:700;}
+.peek .drow{display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0; border-bottom:1px solid var(--border);}
+.peek .drow:last-child{border-bottom:none;}
+.peek .drow .tag{color:var(--text-3); font-size:11px;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="tag-row"><span class="tag">Hướng C</span><span class="tag">Editorial · Featured module</span></div>
+  <h1>Góc Bếp Nhỏ — tạp chí gia đình, thực đơn làm tiêu điểm</h1>
+  <p class="rationale">Hướng này đặt Thực đơn ngày mai làm khối tiêu điểm lớn kiểu tạp chí — vì bữa ăn gia đình là phần mang nhiều cảm xúc và sự chăm sóc nhất trong ngày, xứng đáng chiếm không gian hình ảnh chính thay vì bị thu nhỏ ngang hàng các mảng khác. Lịch trình, Chi tiêu và Học tập lùi thành các thẻ phụ nhỏ hơn bên dưới, còn Ngân hàng món ăn hé lộ như một trang phụ đang được lật tới, tạo cảm giác ấm áp, có tính kể chuyện hơn là một dashboard công việc khô khan.</p>
+</div>
+
+<div class="browser-frame">
+  <div class="chrome-bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="addr">gocbep.local/hom-nay</div>
+  </div>
+  <div class="app">
+    <div class="masthead">
+      <div class="logo">GÓC BẾP NHỎ</div>
+      <nav><span class="cur">Hôm nay</span><span>Chi tiêu</span><span>Học tập</span><span>Thực đơn</span></nav>
+    </div>
+
+    <div class="hero">
+      <div>
+        <div class="kicker">Thực đơn ngày mai · Thứ Năm 20/08</div>
+        <div class="headline">Bò xào thập cẩm</div>
+        <div class="byline">Bữa trưa mai cho <b>Người lớn &amp; bé 4 tuổi</b> · Ghi chú riêng cho bé: bớt cay, cắt nhỏ miếng</div>
+        <div class="chip-row">
+          <span class="chip">Sáng: Bún riêu cua</span>
+          <span class="chip">Tối: Canh chua cá lóc</span>
+          <span class="chip">Tối: Rau muống xào tỏi</span>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="label">Bé dưới 1 tuổi</div>
+        <div class="sub-line">Trưa — Cháo yến mạch bí đỏ</div>
+        <div class="sub-line">Tối — Cháo lươn cà rốt</div>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="kicker">Lịch trình · mai 20/08</div>
+        <h3>6 việc, 3 ưu tiên cao</h3>
+        <div class="line"><span>06:30 Chuẩn bị đồ đi học</span><span>Cao</span></div>
+        <div class="line"><span>17:30 Đón bé lớn tan trường</span><span>Cao</span></div>
+        <div class="line"><span>20:00 Học Automation Test</span><span>Thấp</span></div>
+      </div>
+      <div class="tile">
+        <div class="kicker">Chi tiêu · hôm nay 19/08</div>
+        <div class="big">-85.000đ</div>
+        <div class="small">Ăn uống · Mua rau, thịt buổi chiều</div>
+        <div class="line warn"><span>⚠ Ăn uống còn 26% ngân sách</span></div>
+        <div class="bar"><span style="width:74%"></span></div>
+      </div>
+      <div class="tile">
+        <div class="kicker">Học tập · hôm nay 19/08</div>
+        <div class="line"><span>Tiếng Anh · Mốc A2</span><span>🔥 12 ngày</span></div>
+        <div class="line"><span>Automation Test</span><span>Mốc 3/7</span></div>
+        <div class="small">30 phút — Thực hành Playwright POM</div>
+      </div>
+    </div>
+
+    <!-- secondary screen glimpse: Dish Bank filtered -->
+    <div class="peek">
+      <div class="kicker">Ngân hàng món ăn</div>
+      <h4>Lọc theo nguyên liệu</h4>
+      <span class="filter">Lọc: thịt bò · 2 món</span>
+      <div class="drow"><span>Bò sốt vang</span><span class="tag">Bò, cà rốt</span></div>
+      <div class="drow"><span>Bò xào thập cẩm</span><span class="tag">Bò, ớt chuông</span></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

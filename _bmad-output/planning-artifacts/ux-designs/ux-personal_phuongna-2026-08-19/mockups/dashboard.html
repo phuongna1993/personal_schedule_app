@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Hướng A — Khoảng Thở (Airy Card Dashboard)</title>
+<style>
+/* ============================================================
+   HƯỚNG A — "KHOẢNG THỞ" (airy / spacious card-based dashboard)
+   Tokens — light (mandatory palette, không đổi hex):
+     --bg          #F5F1EA
+     --surface     #FCFAF6
+     --surface-alt #EAE3D6
+     --border      #DDD3BF
+     --text-1      #3D3730
+     --text-2      #665D4F
+     --text-3      #948A78
+     --accent      #7A9471  (sage, cũng là highlight)
+     --accent-ink  #FFFFFF
+     --success     #6B8F5E
+   Tokens — dark (derived, cùng tinh thần ấm áp + sage, không lạnh xanh xám):
+     --bg          #211E17
+     --surface     #2B2820
+     --surface-alt #363228
+     --border      #47412F
+     --text-1      #F0E9DA
+     --text-2      #C7BCA3
+     --text-3      #8F8368
+     --accent      #9BB98F  (sage sáng hơn cho tương phản trên nền tối)
+     --accent-ink  #1B2417  (mực tối trên nền accent sáng, không dùng trắng)
+     --success     #8FAF83
+   Không dùng thêm màu ngoài palette này — trạng thái cảnh báo ngân
+   sách được thể hiện bằng viền/đậm nhạt/icon, không dùng đỏ/cam.
+   ============================================================ */
+:root{
+  --bg:#F5F1EA; --surface:#FCFAF6; --surface-alt:#EAE3D6; --border:#DDD3BF;
+  --text-1:#3D3730; --text-2:#665D4F; --text-3:#948A78;
+  --accent:#7A9471; --accent-ink:#FFFFFF; --success:#6B8F5E;
+}
+[data-theme="dark"]{
+  --bg:#211E17; --surface:#2B2820; --surface-alt:#363228; --border:#47412F;
+  --text-1:#F0E9DA; --text-2:#C7BCA3; --text-3:#8F8368;
+  --accent:#9BB98F; --accent-ink:#1B2417; --success:#8FAF83;
+}
+*{box-sizing:border-box;}
+html{background:var(--bg);}
+body{
+  margin:0; padding:40px 24px 64px; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); display:flex; flex-direction:column; align-items:center; gap:28px;
+  transition:background-color .25s ease, color .25s ease;
+}
+.page-head{max-width:900px; text-align:center;}
+.page-head h1{font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:.2px;}
+.page-head p.rationale{font-size:14.5px; line-height:1.7; color:var(--text-2); margin:0; text-align:left;}
+.tag-row{display:flex; gap:8px; justify-content:center; margin-bottom:10px;}
+.tag{font-size:11px; font-weight:600; color:var(--accent); background:var(--surface-alt); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+
+/* ---- Browser frame ---- */
+.browser-frame{
+  width:100%; max-width:1180px; background:var(--surface);
+  border:1px solid var(--border); border-radius:18px;
+  box-shadow:0 30px 60px -25px rgba(61,55,48,.28), 0 4px 12px rgba(61,55,48,.08);
+  overflow:hidden;
+}
+.chrome-bar{
+  display:flex; align-items:center; gap:10px; padding:12px 16px;
+  background:var(--surface-alt); border-bottom:1px solid var(--border);
+}
+.dots{display:flex; gap:6px;}
+.dot{width:10px; height:10px; border-radius:50%; background:var(--text-3); opacity:.35;}
+.addr{
+  flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:6px 12px; font-size:12.5px; color:var(--text-3); text-align:center;
+}
+.theme-toggle{
+  width:26px; height:26px; border-radius:50%; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; line-height:1; cursor:pointer; padding:0;
+}
+.theme-toggle:hover{border-color:var(--accent);}
+
+.app{position:relative; padding:32px 40px 44px; background:var(--bg);}
+.app-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:28px;}
+.brand{font-size:14px; font-weight:700; color:var(--text-2); letter-spacing:.5px;}
+.greeting{font-size:20px; font-weight:600;}
+.greeting .date{font-weight:400; color:var(--text-2); font-size:14px; display:block; margin-top:2px;}
+.avatar{width:36px; height:36px; border-radius:50%; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;}
+
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:22px;
+  padding:26px 28px; box-shadow:0 14px 28px -20px rgba(61,55,48,.25);
+}
+.card h2{margin:0 0 2px; font-size:16px; font-weight:700;}
+.card .sub{font-size:12.5px; color:var(--text-3); margin-bottom:16px;}
+
+/* task list */
+.task-row{display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px dashed var(--border);}
+.task-row:last-of-type{border-bottom:none;}
+.chk{width:20px; height:20px; border-radius:50%; border:2px solid var(--border); flex-shrink:0;}
+.tname{flex:1; font-size:13.5px; font-weight:500;}
+.ttime{font-size:11.5px; color:var(--text-3); width:44px;}
+.pri{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.pri.hi{background:var(--accent);}
+.pri.mid{background:var(--text-3); opacity:.6;}
+.link-add{display:inline-block; margin-top:14px; font-size:12.5px; font-weight:600; color:var(--accent); cursor:default;}
+.mini-progress-wrap{margin-top:16px; padding-top:14px; border-top:1px solid var(--border);}
+.mini-progress-label{display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-3); margin-bottom:6px;}
+.bar{height:6px; background:var(--surface-alt); border-radius:99px; overflow:hidden;}
+.bar > span{display:block; height:100%; background:var(--accent);}
+
+/* expense card */
+.quick-row{display:flex; align-items:center; gap:8px; background:var(--surface-alt); border:1px solid var(--border); border-radius:14px; padding:10px 14px; margin-bottom:14px;}
+.qf{font-size:13px; color:var(--text-1);}
+.qf.amt{font-weight:700;}
+.qf.cat{color:var(--text-2); background:var(--surface); border:1px solid var(--border); border-radius:99px; padding:2px 10px; font-size:11.5px;}
+.btn{margin-left:auto; background:var(--accent); color:var(--accent-ink); border:none; border-radius:99px; padding:7px 16px; font-size:12.5px; font-weight:700;}
+.alert-box{
+  display:flex; gap:10px; align-items:flex-start; background:var(--surface-alt);
+  border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:12px; padding:12px 14px;
+}
+.alert-box .icon{font-size:16px; line-height:1;}
+.alert-box .txt{font-size:12.5px; line-height:1.5; color:var(--text-1);}
+.alert-box .txt b{color:var(--text-1);}
+.alert-bar{margin-top:8px;}
+
+/* meal card */
+.seg{display:flex; gap:6px; margin-bottom:16px;}
+.seg-btn{font-size:11.5px; padding:6px 12px; border-radius:99px; border:1px solid var(--border); color:var(--text-3);}
+.seg-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:700;}
+.meal-row{display:flex; gap:12px; padding:8px 0; border-bottom:1px dashed var(--border); align-items:baseline;}
+.meal-row:last-child{border-bottom:none;}
+.meal-time{width:44px; font-size:11.5px; color:var(--text-3); font-weight:600;}
+.meal-dish{font-size:13.5px; font-weight:500;}
+.meal-note{display:inline-block; margin-left:8px; font-size:11px; color:var(--accent); background:var(--surface-alt); border-radius:99px; padding:1px 8px;}
+
+/* study card */
+.study-sub{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed var(--border);}
+.study-sub:last-of-type{border-bottom:none;}
+.study-name{font-size:13.5px; font-weight:600;}
+.study-meta{font-size:11.5px; color:var(--text-3); margin-top:2px;}
+.streak{font-size:12px; font-weight:700; color:var(--accent);}
+
+/* floating secondary sheet (quick-add modal peek) */
+.sheet{
+  position:absolute; right:40px; bottom:-18px; width:300px; background:var(--surface);
+  border:1px solid var(--border); border-radius:20px 20px 0 0; padding:20px 22px;
+  box-shadow:0 -14px 40px -12px rgba(61,55,48,.35); transform:translateY(4px);
+}
+.sheet h3{margin:0 0 12px; font-size:13.5px; font-weight:700;}
+.sheet .frow{display:flex; justify-content:space-between; font-size:12px; color:var(--text-2); padding:6px 0; border-bottom:1px solid var(--border);}
+.sheet .frow b{color:var(--text-1);}
+.sheet .actions{display:flex; gap:8px; margin-top:14px;}
+.sheet .actions .btn{margin:0;}
+.sheet .actions .ghost{background:transparent; border:1px solid var(--border); color:var(--text-2); border-radius:99px; padding:7px 16px; font-size:12.5px;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="tag-row"><span class="tag">Hướng A</span><span class="tag">Airy · Card-based</span></div>
+  <h1>Khoảng Thở — dashboard thẻ bo tròn, nhiều khoảng trắng</h1>
+  <p class="rationale">Hướng này ưu tiên khoảng trắng rộng và các thẻ bo góc lớn để tạo cảm giác thư thái sau một ngày dài chăm hai con — mỗi mảng (Lịch trình, Chi tiêu, Thực đơn, Học tập) là một thẻ riêng, dễ quét mắt trong vài giây mà không bị dồn nén. Cảnh báo ngân sách được thể hiện bằng viền nhấn và icon thay vì màu báo động gắt, giữ đúng tinh thần "nhẹ nhàng, nữ tính" xuyên suốt. Bảng quick-add nổi phía dưới mô phỏng thao tác ghi giao dịch chỉ trong một cú chạm.</p>
+</div>
+
+<div class="browser-frame">
+  <div class="chrome-bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="addr">meboi.local/hom-nay</div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Chuyển giao diện sáng/tối" aria-label="Chuyển giao diện sáng/tối">🌙</button>
+  </div>
+  <div class="app">
+    <div class="app-header">
+      <div class="brand">MEBỖI</div>
+      <div class="greeting">Chào buổi tối 🌙<span class="date">Thứ Tư, 19/08/2026</span></div>
+      <div class="avatar">P</div>
+    </div>
+
+    <div class="grid">
+      <!-- Lịch trình -->
+      <div class="card">
+        <h2>Lịch trình — Ngày mai</h2>
+        <div class="sub">Thứ Năm 20/08 · từ Mẫu lịch trình · 6 việc</div>
+        <div class="task-row"><span class="chk"></span><span class="ttime">06:30</span><span class="tname">Chuẩn bị đồ đi học cho bé lớn</span><span class="pri hi"></span></div>
+        <div class="task-row"><span class="chk"></span><span class="ttime">08:00</span><span class="tname">Standup team dự án</span><span class="pri hi"></span></div>
+        <div class="task-row"><span class="chk"></span><span class="ttime">17:30</span><span class="tname">Đón bé lớn tan trường</span><span class="pri hi"></span></div>
+        <div class="task-row"><span class="chk"></span><span class="ttime">20:00</span><span class="tname">Học Automation Test 30 phút</span><span class="pri mid"></span></div>
+        <span class="link-add">+ Thêm việc cho ngày mai</span>
+        <div class="mini-progress-wrap">
+          <div class="mini-progress-label"><span>Hôm nay đã làm</span><span>5/6</span></div>
+          <div class="bar"><span style="width:83%"></span></div>
+        </div>
+      </div>
+
+      <!-- Chi tiêu -->
+      <div class="card">
+        <h2>Chi tiêu — Hôm nay</h2>
+        <div class="sub">Thứ Tư 19/08 · ghi nhanh</div>
+        <div class="quick-row">
+          <span class="qf amt">-85.000đ</span>
+          <span class="qf cat">Ăn uống</span>
+          <span class="qf" style="color:var(--text-3);">Mua rau, thịt buổi chiều</span>
+          <button class="btn">Lưu</button>
+        </div>
+        <div class="alert-box">
+          <span class="icon">⚠</span>
+          <div class="txt">
+            <b>Ngân sách "Ăn uống" chỉ còn 26%</b> — đã chi 2.200.000 / 3.000.000đ trong tháng. Dưới mức 30%, sắp chạm hạn mức.
+            <div class="alert-bar bar"><span style="width:74%"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thực đơn -->
+      <div class="card">
+        <h2>Thực đơn — Ngày mai</h2>
+        <div class="sub">Thứ Năm 20/08 · từ Ngân hàng món ăn</div>
+        <div class="seg"><span class="seg-btn active">Người lớn &amp; bé 4 tuổi</span><span class="seg-btn">Bé dưới 1 tuổi</span></div>
+        <div class="meal-row"><span class="meal-time">Sáng</span><span class="meal-dish">Bún riêu cua</span></div>
+        <div class="meal-row"><span class="meal-time">Trưa</span><span class="meal-dish">Cơm, Bò xào thập cẩm</span><span class="meal-note">bớt cay, cắt nhỏ</span></div>
+        <div class="meal-row"><span class="meal-time">Tối</span><span class="meal-dish">Canh chua cá lóc, rau muống xào tỏi</span></div>
+      </div>
+
+      <!-- Học tập -->
+      <div class="card">
+        <h2>Học tập — Hôm nay</h2>
+        <div class="sub">Thứ Tư 19/08 · 2 lộ trình</div>
+        <div class="study-sub">
+          <div><div class="study-name">Tiếng Anh · Mốc A2</div><div class="study-meta">Bài test gần nhất: Nghe A2 — 78/100</div></div>
+          <div class="streak">🔥 12 ngày</div>
+        </div>
+        <div class="study-sub">
+          <div><div class="study-name">Automation Test · Mốc 3/7</div><div class="study-meta">Thực hành Playwright POM – trang đăng nhập · 30 phút</div></div>
+          <div class="streak">3/7</div>
+        </div>
+        <span class="link-add">+ Ghi buổi học mới</span>
+      </div>
+    </div>
+
+    <!-- secondary screen glimpse: quick-add sheet peeking -->
+    <div class="sheet">
+      <h3>Thêm giao dịch nhanh</h3>
+      <div class="frow"><span>Số tiền</span><b>85.000đ</b></div>
+      <div class="frow"><span>Danh mục</span><b>Ăn uống</b></div>
+      <div class="frow"><span>Ghi chú</span><b>Mua rau, thịt buổi chiều</b></div>
+      <div class="actions">
+        <button class="btn">Lưu giao dịch</button>
+        <button class="ghost">Huỷ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleTheme(){
+  var html = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  btn.textContent = isDark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>

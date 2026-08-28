@@ -1,0 +1,120 @@
+- id: "1"
+  title: Mẫu lịch trình
+  description: >-
+    Tạo/sửa/xoá Task mặc định (tên, Thời hạn, Mức ưu tiên) trong Mẫu lịch trình,
+    dùng làm điểm khởi đầu cho mọi Lịch trình ngày mới (SPEC.md CAP-1).
+  invoke_dev_with: >-
+    Task fields: tên, Thời hạn (khung giờ trong ngày), Mức ưu tiên. Story này
+    chỉ đụng tới bảng MauLichTrinh, không đụng LichTrinhNgay (xem AD-2,
+    ARCHITECTURE-SPINE.md).
+
+- id: "2"
+  title: Lịch trình ngày
+  description: >-
+    Khởi tạo Lịch trình ngày mới từ Mẫu mỗi ngày, cho chỉnh riêng, check-off
+    Task, và xem tỷ lệ hoàn thành so với kế hoạch (SPEC.md CAP-2, CAP-3).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Khởi tạo ngày mới là ngầm trong đường đọc, qua đúng một Server Action
+    taoLichTrinhNgayTuMau() (AD-3 ngoại lệ 2). Ranh giới ngày tính theo giờ
+    Asia/Ho_Chi_Minh. Hiển thị tỷ lệ "Đã xong / Tổng" trên Hôm nay (FR-3).
+
+- id: "3"
+  title: Ghi chi tiêu & Ngân sách
+  description: >-
+    Ghi nhanh Giao dịch (Chi/Thu, VNĐ, ghi chú tuỳ chọn) và quản lý Danh mục
+    chi tiêu + Ngân sách theo tháng (SPEC.md CAP-4, CAP-5).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    soTien luôn là Int dương; chiều Chi/Thu xác định bởi cột loai (enum),
+    không dùng dấu số âm. Mỗi hàng NganSach gắn với đúng một tháng — sửa
+    ngân sách tháng hiện tại không được đổi các hàng của tháng đã qua (AD-2).
+
+- id: "4"
+  title: Cảnh báo ngân sách 30%
+  description: >-
+    Cảnh báo ngay khi số dư Ngân sách một Danh mục xuống dưới 30% hạn mức
+    (và khi vượt 100%) (SPEC.md CAP-6).
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Ngưỡng 30% cố định, không cấu hình theo Danh mục. Cảnh báo phải trả về
+    ngay trong response của Server Action ghi Giao dịch, ở đúng field
+    data.canhBaoNganSach (null nếu không có) — không qua kênh riêng (AD-3).
+
+- id: "5"
+  title: Xem báo cáo chi tiêu theo tháng
+  description: >-
+    Xem tổng Thu/Chi và chi tiết theo Danh mục cho bất kỳ tháng nào trong
+    quá khứ, không chỉ tháng hiện tại (SPEC.md CAP-7).
+  done_checkpoint: true
+
+- id: "6"
+  title: Ngân hàng món ăn
+  description: >-
+    Thêm/sửa/xoá Món ăn (tên, danh sách Nguyên liệu, ảnh tuỳ chọn) và lọc
+    theo Nguyên liệu (SPEC.md CAP-8).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Ảnh (Món ăn/Nguyên liệu) lưu file trên đĩa dưới app-data/uploads/; DB
+    chỉ lưu đường dẫn tương đối qua hàm dùng chung resolveUploadPath();
+    phục vụ lại qua Route Handler chỉ-đọc app/uploads/[...path]/route.ts
+    (AD-4, ARCHITECTURE-SPINE.md).
+
+- id: "7"
+  title: Lên thực đơn ngày
+  description: >-
+    Chọn Món ăn cho 3 bữa/ngày, lập riêng theo 2 Nhóm khẩu phần độc lập,
+    kèm ghi chú điều chỉnh cho bé 4 tuổi (SPEC.md CAP-9, CAP-10).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    2 Nhóm khẩu phần là 2 nhánh dữ liệu hoàn toàn độc lập, không dùng chung
+    một bảng nối. Cột ghi chú điều chỉnh chỉ tồn tại về cấu trúc ở nhánh
+    "Người lớn & bé 4 tuổi" — không phải cột dùng chung rồi ẩn ở nhánh kia
+    (xem ghi chú ranh giới ERD trong ARCHITECTURE-SPINE.md).
+
+- id: "8"
+  title: Ghi buổi học
+  description: >-
+    Ghi một Buổi học (nội dung, thời lượng) cho một Kỹ năng — Tiếng Anh
+    hoặc Automation Test (SPEC.md CAP-11).
+  done_checkpoint: true
+
+- id: "9"
+  title: Xem tiến độ học tập
+  description: >-
+    Xem lịch sử Buổi học, tổng thời lượng, streak/biểu đồ theo Kỹ năng, và
+    lịch sử Điểm số Bài test đánh giá cho Tiếng Anh (SPEC.md CAP-12).
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Cần ít nhất một trong hai hình thức (streak hoặc biểu đồ theo thời
+    gian) — không bắt buộc cả hai. Riêng Kỹ năng Tiếng Anh hiển thị thêm
+    lịch sử Điểm số Bài test đánh giá theo thời gian.
+
+- id: "10"
+  title: Lộ trình & Mốc
+  description: >-
+    Theo dõi vị trí và đánh dấu Hoàn thành Mốc trên Lộ trình của một Kỹ
+    năng, gồm gate Bài test đánh giá cho Tiếng Anh (SPEC.md CAP-13).
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    "Vị trí hiện tại" trên Lộ trình KHÔNG có cột con trỏ vật lý — luôn suy
+    ra qua hàm dùng chung layMocHienTai() (Mốc sớm nhất chưa có hàng Hoàn
+    thành). Dùng đúng MỘT Server Action hoanThanhMoc(mocId) cho cả 2 Kỹ
+    năng, tự kiểm tra gate Bài test đánh giá bên trong khi Kỹ năng là Tiếng
+    Anh (không tách 2 action riêng, không chỉ ẩn nút ở UI). Automation Test
+    có đúng 7 Mốc cố định; Tiếng Anh có đúng 3 Mốc cố định (A1, A2, B1)
+    (AD-2, ARCHITECTURE-SPINE.md).
+
+- id: "11"
+  title: Dashboard Hôm nay
+  description: >-
+    Màn hub tổng hợp cả 4 module trong một lượt quét mắt, theo Key Flow
+    UJ-1 của EXPERIENCE.md — điểm vào duy nhất của app.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Tầng tổng hợp CHỈ được gọi qua các hàm export trong queries.ts của
+    từng module (ví dụ layTomTatHomNay()) — không bao giờ tự import Prisma
+    model của module khác, kể cả để đọc (AD-1, ARCHITECTURE-SPINE.md).

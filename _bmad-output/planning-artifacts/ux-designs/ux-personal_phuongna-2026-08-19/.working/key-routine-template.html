@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Key Screen — Mẫu lịch trình (Routine Template)</title>
+<style>
+/* ============================================================
+   KEY SCREEN: Mẫu lịch trình (Routine Template editor)
+   Renders Direction A "Khoảng Thở" visual language against:
+
+   Spine / PRD sections illustrated:
+   - Glossary: Task, Mẫu lịch trình (Routine Template),
+     Lịch trình ngày (Daily Schedule), Thời hạn, Mức ưu tiên
+   - FR-1 Tạo và chỉnh sửa Mẫu lịch trình
+     · consequence: sửa Mẫu KHÔNG đổi các Lịch trình ngày đã tạo
+       trước đó (see .info-box microcopy below)
+     · consequence: thêm/sửa/xoá Task trong Mẫu bất kỳ lúc nào
+       (see .row-actions per task-row, .add-task-form)
+     · consequence: Thời hạn chỉ là một khung giờ trong ngày,
+       không kéo dài qua ngày hôm sau (see .ttime, time input)
+   - FR-2 Khởi tạo Lịch trình ngày từ Mẫu (relationship called out
+     explicitly in .info-box so this screen is never confused
+     with the daily "Lịch trình — Ngày mai" card in
+     direction-airy-card.html)
+
+   Component patterns reused verbatim from direction-airy-card.html:
+     tokens (light/dark), .browser-frame/.chrome-bar/.theme-toggle,
+     .card, .task-row/.chk/.ttime/.pri/.tname, .btn/.ghost, .tag
+   New component patterns introduced here (not yet in a spine
+   Component Patterns table — flagging for promotion at Finalize):
+     .info-box (neutral explanatory callout, distinct from
+       .alert-box which is reserved for budget warnings),
+     .badge-pri (named priority pill: Cao/Trung bình/Thấp),
+     .row-actions (inline edit/delete icon buttons per row),
+     .field/.input/.seg (inline add-task form controls)
+   ============================================================ */
+:root{
+  --bg:#F5F1EA; --surface:#FCFAF6; --surface-alt:#EAE3D6; --border:#DDD3BF;
+  --text-1:#3D3730; --text-2:#665D4F; --text-3:#948A78;
+  --accent:#7A9471; --accent-ink:#FFFFFF; --success:#6B8F5E;
+}
+[data-theme="dark"]{
+  --bg:#211E17; --surface:#2B2820; --surface-alt:#363228; --border:#47412F;
+  --text-1:#F0E9DA; --text-2:#C7BCA3; --text-3:#8F8368;
+  --accent:#9BB98F; --accent-ink:#1B2417; --success:#8FAF83;
+}
+*{box-sizing:border-box;}
+html{background:var(--bg);}
+body{
+  margin:0; padding:40px 24px 64px; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); display:flex; flex-direction:column; align-items:center; gap:28px;
+  transition:background-color .25s ease, color .25s ease;
+}
+.page-head{max-width:900px; text-align:center;}
+.page-head h1{font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:.2px;}
+.page-head p.rationale{font-size:14.5px; line-height:1.7; color:var(--text-2); margin:0; text-align:left;}
+.tag-row{display:flex; gap:8px; justify-content:center; margin-bottom:10px;}
+.tag{font-size:11px; font-weight:600; color:var(--accent); background:var(--surface-alt); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+
+.browser-frame{
+  width:100%; max-width:900px; background:var(--surface);
+  border:1px solid var(--border); border-radius:18px;
+  box-shadow:0 30px 60px -25px rgba(61,55,48,.28), 0 4px 12px rgba(61,55,48,.08);
+  overflow:hidden;
+}
+.chrome-bar{
+  display:flex; align-items:center; gap:10px; padding:12px 16px;
+  background:var(--surface-alt); border-bottom:1px solid var(--border);
+}
+.dots{display:flex; gap:6px;}
+.dot{width:10px; height:10px; border-radius:50%; background:var(--text-3); opacity:.35;}
+.addr{
+  flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:6px 12px; font-size:12.5px; color:var(--text-3); text-align:center;
+}
+.theme-toggle{
+  width:26px; height:26px; border-radius:50%; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; line-height:1; cursor:pointer; padding:0;
+}
+.theme-toggle:hover{border-color:var(--accent);}
+
+.app{position:relative; padding:32px 40px 40px; background:var(--bg);}
+.app-header{display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:8px;}
+.brand{font-size:14px; font-weight:700; color:var(--text-2); letter-spacing:.5px;}
+.back-link{font-size:12px; color:var(--text-3); margin-bottom:14px; display:block;}
+.screen-title{font-size:20px; font-weight:700; margin:2px 0 2px;}
+.screen-sub{font-size:13px; color:var(--text-2);}
+
+.info-box{
+  display:flex; gap:10px; align-items:flex-start; background:var(--surface-alt);
+  border:1px solid var(--border); border-left:4px solid var(--text-3); border-radius:12px;
+  padding:13px 16px; margin:18px 0 24px;
+}
+.info-box .icon{font-size:15px; line-height:1.3; color:var(--text-2);}
+.info-box .txt{font-size:12.5px; line-height:1.6; color:var(--text-2);}
+.info-box .txt b{color:var(--text-1);}
+
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:22px;
+  padding:26px 28px; box-shadow:0 14px 28px -20px rgba(61,55,48,.25);
+}
+.card h2{margin:0 0 2px; font-size:16px; font-weight:700;}
+.card .sub{font-size:12.5px; color:var(--text-3); margin-bottom:18px;}
+
+.task-row{display:flex; align-items:center; gap:14px; padding:12px 2px; border-bottom:1px dashed var(--border);}
+.task-row:last-of-type{border-bottom:none;}
+.ttime{font-size:12.5px; color:var(--text-3); width:46px; font-weight:600; flex-shrink:0;}
+.tname{flex:1; font-size:13.5px; font-weight:500;}
+.badge-pri{font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:99px; flex-shrink:0; letter-spacing:.2px;}
+.badge-pri.hi{background:var(--accent); color:var(--accent-ink);}
+.badge-pri.mid{background:var(--surface-alt); color:var(--text-2); border:1px solid var(--border);}
+.badge-pri.low{background:transparent; color:var(--text-3); border:1px dashed var(--border);}
+.row-actions{display:flex; gap:4px; flex-shrink:0;}
+.icon-btn{
+  width:26px; height:26px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+  color:var(--text-3); font-size:12px; display:flex; align-items:center; justify-content:center; cursor:default;
+}
+.icon-btn:hover{border-color:var(--accent); color:var(--accent);}
+
+.link-add{display:inline-block; margin-top:16px; font-size:12.5px; font-weight:600; color:var(--accent); cursor:default;}
+
+.add-task-form{
+  margin-top:18px; padding-top:18px; border-top:1px solid var(--border);
+  display:flex; flex-direction:column; gap:14px;
+}
+.form-title{font-size:12.5px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.4px;}
+.form-row{display:flex; gap:12px; flex-wrap:wrap;}
+.field{display:flex; flex-direction:column; gap:6px; flex:1; min-width:160px;}
+.field.narrow{flex:0 0 120px; min-width:120px;}
+.field label{font-size:11.5px; color:var(--text-3); font-weight:600;}
+.input{
+  background:var(--surface-alt); border:1px solid var(--border); border-radius:10px;
+  padding:9px 12px; font-size:13px; color:var(--text-1);
+}
+.seg{display:flex; gap:6px;}
+.seg-btn{font-size:11.5px; padding:7px 13px; border-radius:99px; border:1px solid var(--border); color:var(--text-3); background:var(--surface);}
+.seg-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:700;}
+.form-actions{display:flex; gap:8px; margin-top:2px;}
+.btn{background:var(--accent); color:var(--accent-ink); border:none; border-radius:99px; padding:8px 18px; font-size:12.5px; font-weight:700;}
+.ghost{background:transparent; border:1px solid var(--border); color:var(--text-2); border-radius:99px; padding:8px 18px; font-size:12.5px;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="tag-row"><span class="tag">Hướng A · Khoảng Thở</span><span class="tag">Mẫu lịch trình</span></div>
+  <h1>Mẫu lịch trình — màn hình chỉnh sửa bản mẫu Task mặc định</h1>
+  <p class="rationale">Đây là màn hình quản lý <b>Mẫu lịch trình</b> (Routine Template) — khác với <b>Lịch trình ngày</b> (Daily Schedule) hiển thị trên Dashboard. Mẫu chỉ là điểm khởi đầu để hệ thống khởi tạo Lịch trình của mỗi ngày mới; chỉnh sửa Task ở đây không viết đè lên các ngày đã lên kế hoạch trước đó. Vẫn giữ nguyên thẻ bo tròn, khoảng trắng rộng và tông sage ấm của Hướng A.</p>
+</div>
+
+<div class="browser-frame">
+  <div class="chrome-bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="addr">meboi.local/mau-lich-trinh</div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Chuyển giao diện sáng/tối" aria-label="Chuyển giao diện sáng/tối">🌙</button>
+  </div>
+  <div class="app">
+    <div class="app-header">
+      <div>
+        <a class="back-link">← Về Lịch trình hôm nay</a>
+        <div class="screen-title">Mẫu lịch trình</div>
+        <div class="screen-sub">Danh sách Task mặc định · dùng để khởi tạo mọi Lịch trình ngày mới</div>
+      </div>
+      <div class="brand">MEBỖI</div>
+    </div>
+
+    <div class="info-box">
+      <span class="icon">ⓘ</span>
+      <div class="txt">Đây là <b>bản Mẫu</b>, không phải Lịch trình của một ngày cụ thể. Sửa/thêm/xoá Task ở đây chỉ ảnh hưởng các <b>Lịch trình ngày được khởi tạo sau này</b> — các ngày đã qua hoặc đã lên kế hoạch trước đó giữ nguyên, không bị ghi đè.</div>
+    </div>
+
+    <div class="card">
+      <h2>Task mặc định</h2>
+      <div class="sub">6 việc · áp dụng từ lần khởi tạo Lịch trình ngày tiếp theo</div>
+
+      <div class="task-row">
+        <span class="ttime">06:30</span>
+        <span class="tname">Chuẩn bị đồ đi học cho bé lớn</span>
+        <span class="badge-pri hi">Cao</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+      <div class="task-row">
+        <span class="ttime">08:00</span>
+        <span class="tname">Standup team dự án</span>
+        <span class="badge-pri hi">Cao</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+      <div class="task-row">
+        <span class="ttime">17:30</span>
+        <span class="tname">Đón bé lớn tan trường</span>
+        <span class="badge-pri hi">Cao</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+      <div class="task-row">
+        <span class="ttime">18:00</span>
+        <span class="tname">Nấu tối</span>
+        <span class="badge-pri mid">Trung bình</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+      <div class="task-row">
+        <span class="ttime">20:00</span>
+        <span class="tname">Học Automation Test 30 phút</span>
+        <span class="badge-pri mid">Trung bình</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+      <div class="task-row">
+        <span class="ttime">21:00</span>
+        <span class="tname">Đọc sách cho con trước khi ngủ</span>
+        <span class="badge-pri low">Thấp</span>
+        <span class="row-actions"><span class="icon-btn">✎</span><span class="icon-btn">✕</span></span>
+      </div>
+
+      <span class="link-add">+ Thêm Task mới</span>
+
+      <div class="add-task-form">
+        <div class="form-title">Task mới</div>
+        <div class="form-row">
+          <div class="field">
+            <label>Tên việc</label>
+            <div class="input">Đưa bé đi học</div>
+          </div>
+          <div class="field narrow">
+            <label>Thời hạn</label>
+            <div class="input">07:15</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Mức ưu tiên</label>
+          <div class="seg">
+            <span class="seg-btn">Cao</span>
+            <span class="seg-btn active">Trung bình</span>
+            <span class="seg-btn">Thấp</span>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn">Lưu Task</button>
+          <button class="ghost">Huỷ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleTheme(){
+  var html = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  btn.textContent = isDark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>

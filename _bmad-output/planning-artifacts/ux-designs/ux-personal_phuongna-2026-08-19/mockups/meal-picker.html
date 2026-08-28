@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Key Screen — Ngân hàng món ăn &amp; Thực đơn ngày (Meal Picker)</title>
+<style>
+/* ============================================================
+   KEY SCREEN: Chọn Thực đơn ngày / Ngân hàng món ăn (Meal Picker)
+   Renders Direction A "Khoảng Thở" visual language against:
+
+   Spine / PRD concepts illustrated:
+   - Glossary: Ngân hàng món ăn (Dish Bank), Món ăn (Dish: tên +
+     Nguyên liệu + ảnh minh hoạ tuỳ chọn), Thực đơn ngày (Daily
+     Menu), Nhóm khẩu phần (Portion Group)
+   - FR: Xây dựng & duyệt Ngân hàng món ăn — mỗi món lưu tên,
+     danh sách nguyên liệu, ảnh minh hoạ tuỳ chọn (xem .dish-card)
+   - FR: Lọc món ăn trong Ngân hàng theo nguyên liệu (xem
+     .filter-chip "thịt bò" đang active + nhãn "Đang lọc")
+   - FR: Gán món từ Ngân hàng vào Thực đơn ngày theo từng bữa
+     (sáng/trưa/tối), lặp lại RIÊNG cho từng Nhóm khẩu phần —
+     "Người lớn & bé 4 tuổi" (có Ghi chú điều chỉnh tuỳ chọn,
+     xem .note-input) và "Bé dưới 1 tuổi" (ăn dặm, món/khung giờ
+     hoàn toàn tách biệt — xem hai .assign-col cạnh nhau + .info-box
+     khẳng định tính độc lập giữa hai nhóm)
+   - Consequence: sửa/thêm món trong Ngân hàng không tự áp vào
+     Thực đơn ngày đã gán — gán là thao tác chọn thủ công riêng
+     (xem nút "+ Thêm vào thực đơn" trên từng .dish-card)
+
+   Component patterns reused verbatim from direction-airy-card.html
+   / key-routine-template.html:
+     tokens (light/dark), .browser-frame/.chrome-bar/.theme-toggle,
+     .card, .tag, .seg/.seg-btn, .btn/.ghost, .info-box
+   New component patterns introduced here (flagging for promotion
+   at Finalize):
+     .filter-chip (ingredient filter, active state),
+     .dish-grid/.dish-card/.dish-photo (Dish Bank browsing,
+       placeholder "photo" blocks — solid palette tokens + emoji,
+       no real images/network),
+     .ing-chip (nguyên liệu tag inside a dish card),
+     .add-dish-card (dashed "add new dish" affordance),
+     .assign-grid/.assign-col/.meal-slot/.note-input (per-portion-
+       group daily menu assignment, two independent columns)
+   ============================================================ */
+:root{
+  --bg:#F5F1EA; --surface:#FCFAF6; --surface-alt:#EAE3D6; --border:#DDD3BF;
+  --text-1:#3D3730; --text-2:#665D4F; --text-3:#948A78;
+  --accent:#7A9471; --accent-ink:#FFFFFF; --success:#6B8F5E;
+}
+[data-theme="dark"]{
+  --bg:#211E17; --surface:#2B2820; --surface-alt:#363228; --border:#47412F;
+  --text-1:#F0E9DA; --text-2:#C7BCA3; --text-3:#8F8368;
+  --accent:#9BB98F; --accent-ink:#1B2417; --success:#8FAF83;
+}
+*{box-sizing:border-box;}
+html{background:var(--bg);}
+body{
+  margin:0; padding:40px 24px 64px; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); display:flex; flex-direction:column; align-items:center; gap:28px;
+  transition:background-color .25s ease, color .25s ease;
+}
+.page-head{max-width:1100px; text-align:center;}
+.page-head h1{font-size:22px; font-weight:700; margin:0 0 6px; letter-spacing:.2px;}
+.page-head p.rationale{font-size:14.5px; line-height:1.7; color:var(--text-2); margin:0; text-align:left;}
+.tag-row{display:flex; gap:8px; justify-content:center; margin-bottom:10px;}
+.tag{font-size:11px; font-weight:600; color:var(--accent); background:var(--surface-alt); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+
+.browser-frame{
+  width:100%; max-width:1180px; background:var(--surface);
+  border:1px solid var(--border); border-radius:18px;
+  box-shadow:0 30px 60px -25px rgba(61,55,48,.28), 0 4px 12px rgba(61,55,48,.08);
+  overflow:hidden;
+}
+.chrome-bar{
+  display:flex; align-items:center; gap:10px; padding:12px 16px;
+  background:var(--surface-alt); border-bottom:1px solid var(--border);
+}
+.dots{display:flex; gap:6px;}
+.dot{width:10px; height:10px; border-radius:50%; background:var(--text-3); opacity:.35;}
+.addr{
+  flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:6px 12px; font-size:12.5px; color:var(--text-3); text-align:center;
+}
+.theme-toggle{
+  width:26px; height:26px; border-radius:50%; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; line-height:1; cursor:pointer; padding:0;
+}
+.theme-toggle:hover{border-color:var(--accent);}
+
+.app{padding:32px 40px 44px; background:var(--bg);}
+.app-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;}
+.brand{font-size:14px; font-weight:700; color:var(--text-2); letter-spacing:.5px;}
+.page-title{font-size:20px; font-weight:600;}
+.page-title .date{font-weight:400; color:var(--text-2); font-size:14px; display:block; margin-top:2px;}
+.avatar{width:36px; height:36px; border-radius:50%; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;}
+
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:22px;
+  padding:26px 28px; box-shadow:0 14px 28px -20px rgba(61,55,48,.25);
+  margin-bottom:24px;
+}
+.card h2{margin:0 0 2px; font-size:16px; font-weight:700;}
+.card .sub{font-size:12.5px; color:var(--text-3); margin-bottom:18px;}
+
+/* ---- Dish Bank ---- */
+.filter-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
+.filter-chip{
+  font-size:12px; font-weight:600; padding:6px 14px; border-radius:99px;
+  border:1px solid var(--border); color:var(--text-2); background:var(--surface);
+  cursor:default;
+}
+.filter-chip.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.filter-note{font-size:12px; color:var(--text-3); margin:0 0 18px;}
+.filter-note b{color:var(--text-1);}
+
+.dish-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:8px;}
+.dish-card{
+  border:1px solid var(--border); border-radius:16px; background:var(--surface);
+  overflow:hidden; display:flex; flex-direction:column;
+  transition:opacity .2s ease;
+}
+.dish-card.match{border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);}
+.dish-card.dim{opacity:.5;}
+.dish-photo{
+  height:64px; display:flex; align-items:center; justify-content:center;
+  font-size:26px; color:var(--accent-ink);
+}
+.dish-photo.p1{background:var(--accent);}
+.dish-photo.p2{background:var(--success);}
+.dish-photo.p3{background:var(--text-3);}
+.dish-photo.p4{background:var(--border);}
+.dish-body{padding:12px 14px 14px; display:flex; flex-direction:column; gap:8px; flex:1;}
+.dish-name{font-size:13px; font-weight:700; display:flex; align-items:center; gap:6px;}
+.match-flag{font-size:10.5px; font-weight:700; color:var(--accent);}
+.ing-list{display:flex; flex-wrap:wrap; gap:4px;}
+.ing-chip{font-size:10.5px; color:var(--text-2); background:var(--surface-alt); border:1px solid var(--border); border-radius:99px; padding:2px 8px;}
+.ing-chip.hit{color:var(--accent-ink); background:var(--accent); border-color:var(--accent); font-weight:700;}
+.dish-add{
+  margin-top:auto; font-size:11.5px; font-weight:700; color:var(--accent);
+  background:var(--surface-alt); border:1px solid var(--border); border-radius:99px;
+  padding:6px 10px; text-align:center; cursor:default;
+}
+.add-dish-card{
+  border:1.5px dashed var(--border); border-radius:16px; background:var(--surface-alt);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; padding:20px 12px; color:var(--text-3); min-height:150px;
+}
+.add-dish-card .plus{font-size:22px; color:var(--accent);}
+.add-dish-card .lbl{font-size:12px; font-weight:600; color:var(--text-2); text-align:center;}
+.add-dish-card .hint{font-size:10.5px; color:var(--text-3); text-align:center; line-height:1.5;}
+
+.bank-more{
+  margin-top:16px; padding-top:14px; border-top:1px dashed var(--border);
+  font-size:12px; color:var(--text-3); line-height:1.7;
+}
+.bank-more b{color:var(--text-2);}
+
+/* ---- Divider ---- */
+.section-divider{display:flex; align-items:center; gap:12px; margin:6px 0 18px;}
+.section-divider h2{margin:0; font-size:16px; font-weight:700; white-space:nowrap;}
+.section-divider .line{flex:1; height:1px; background:var(--border);}
+.section-divider .sub{font-size:12.5px; color:var(--text-3); white-space:nowrap;}
+
+/* ---- Assignment columns ---- */
+.assign-grid{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+.assign-col{
+  background:var(--surface); border:1px solid var(--border); border-radius:22px;
+  padding:22px 24px; box-shadow:0 14px 28px -20px rgba(61,55,48,.25);
+}
+.assign-col h3{margin:0 0 2px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;}
+.assign-col .group-sub{font-size:12px; color:var(--text-3); margin-bottom:16px;}
+.meal-slot{padding:12px 0; border-bottom:1px dashed var(--border);}
+.meal-slot:last-of-type{border-bottom:none; padding-bottom:0;}
+.meal-slot-head{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+.meal-time{font-size:11px; font-weight:700; color:var(--accent); background:var(--surface-alt); border-radius:99px; padding:3px 10px; width:44px; text-align:center;}
+.meal-select{
+  flex:1; display:flex; align-items:center; justify-content:space-between;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface-alt);
+  padding:8px 12px; font-size:13px; font-weight:600;
+}
+.meal-select .chev{color:var(--text-3); font-size:11px;}
+.note-input{
+  width:100%; margin-top:8px; border:1px solid var(--border); border-radius:10px;
+  background:var(--surface); padding:8px 12px; font-size:12px; color:var(--text-2);
+  font-family:inherit;
+}
+.note-input.filled{color:var(--text-1); font-weight:500;}
+.note-input::placeholder{color:var(--text-3);}
+.slot-empty{font-size:12px; color:var(--text-3); font-style:italic; padding:8px 0;}
+
+.info-box{
+  display:flex; gap:10px; align-items:flex-start; background:var(--surface-alt);
+  border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:12px;
+  padding:12px 14px; margin-top:20px; max-width:1180px; width:100%;
+}
+.info-box .icon{font-size:16px; line-height:1;}
+.info-box .txt{font-size:12.5px; line-height:1.6; color:var(--text-1);}
+.info-box .txt b{color:var(--text-1);}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="tag-row"><span class="tag">Key Screen</span><span class="tag">Ngân hàng món ăn · Thực đơn ngày</span></div>
+  <h1>Chọn Thực đơn ngày / Ngân hàng món ăn</h1>
+  <p class="rationale">Màn hình gộp hai thao tác liên quan nhưng tách biệt: (1) duyệt và lọc <b>Ngân hàng món ăn</b> — kho món dùng chung, mỗi món có tên, nguyên liệu, ảnh minh hoạ tuỳ chọn; và (2) <b>gán món vào Thực đơn ngày</b> cho từng bữa, lặp lại độc lập cho hai Nhóm khẩu phần "Người lớn &amp; bé 4 tuổi" và "Bé dưới 1 tuổi" — hai cột cạnh nhau để không ai nhầm lẫn gán nhầm món ăn dặm cho người lớn hay ngược lại.</p>
+</div>
+
+<div class="browser-frame">
+  <div class="chrome-bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="addr">meboi.local/thuc-don/chon-mon</div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Chuyển giao diện sáng/tối" aria-label="Chuyển giao diện sáng/tối">🌙</button>
+  </div>
+  <div class="app">
+    <div class="app-header">
+      <div class="brand">MEBỖI</div>
+      <div class="page-title">Ngân hàng món ăn &amp; Thực đơn ngày<span class="date">Gán món cho Thứ Năm, 20/08/2026</span></div>
+      <div class="avatar">P</div>
+    </div>
+
+    <!-- Dish Bank -->
+    <div class="card">
+      <h2>Ngân hàng món ăn</h2>
+      <div class="sub">7 món đã lưu · lọc theo nguyên liệu để tìm nhanh</div>
+      <div class="filter-row">
+        <span class="filter-chip">Tất cả</span>
+        <span class="filter-chip active">thịt bò</span>
+        <span class="filter-chip">cá</span>
+        <span class="filter-chip">rau củ</span>
+        <span class="filter-chip">ăn dặm</span>
+      </div>
+      <p class="filter-note">Đang lọc theo nguyên liệu <b>"thịt bò"</b> — <b>2/7 món</b> phù hợp, các món còn lại được làm mờ bên dưới.</p>
+
+      <div class="dish-grid">
+        <div class="dish-card match">
+          <div class="dish-photo p1">🥩</div>
+          <div class="dish-body">
+            <div class="dish-name">Bò xào thập cẩm <span class="match-flag">✓ khớp</span></div>
+            <div class="ing-list">
+              <span class="ing-chip hit">thịt bò</span>
+              <span class="ing-chip">ớt chuông</span>
+              <span class="ing-chip">hành tây</span>
+              <span class="ing-chip">cà rốt</span>
+              <span class="ing-chip">bông cải xanh</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card match">
+          <div class="dish-photo p1">🍲</div>
+          <div class="dish-body">
+            <div class="dish-name">Bò sốt vang <span class="match-flag">✓ khớp</span></div>
+            <div class="ing-list">
+              <span class="ing-chip hit">thịt bò</span>
+              <span class="ing-chip">khoai tây</span>
+              <span class="ing-chip">cà rốt</span>
+              <span class="ing-chip">hành tây</span>
+              <span class="ing-chip">quế hồi</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card dim">
+          <div class="dish-photo p2">🐟</div>
+          <div class="dish-body">
+            <div class="dish-name">Canh chua cá lóc</div>
+            <div class="ing-list">
+              <span class="ing-chip">cá lóc</span>
+              <span class="ing-chip">me</span>
+              <span class="ing-chip">dứa</span>
+              <span class="ing-chip">giá đỗ</span>
+              <span class="ing-chip">rau ngổ</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card dim">
+          <div class="dish-photo p3">🦀</div>
+          <div class="dish-body">
+            <div class="dish-name">Bún riêu cua</div>
+            <div class="ing-list">
+              <span class="ing-chip">cua đồng</span>
+              <span class="ing-chip">cà chua</span>
+              <span class="ing-chip">đậu phụ</span>
+              <span class="ing-chip">bún</span>
+              <span class="ing-chip">mắm tôm</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card dim">
+          <div class="dish-photo p4">🥣</div>
+          <div class="dish-body">
+            <div class="dish-name">Cháo yến mạch bí đỏ</div>
+            <div class="ing-list">
+              <span class="ing-chip">yến mạch</span>
+              <span class="ing-chip">bí đỏ</span>
+              <span class="ing-chip">dashi rau củ</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card dim">
+          <div class="dish-photo p2">🥣</div>
+          <div class="dish-body">
+            <div class="dish-name">Cháo thịt bằm rau ngót</div>
+            <div class="ing-list">
+              <span class="ing-chip">gạo</span>
+              <span class="ing-chip">thịt heo bằm</span>
+              <span class="ing-chip">rau ngót</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="dish-card dim">
+          <div class="dish-photo p3">🎃</div>
+          <div class="dish-body">
+            <div class="dish-name">Súp bí đỏ khoai lang</div>
+            <div class="ing-list">
+              <span class="ing-chip">bí đỏ</span>
+              <span class="ing-chip">khoai lang</span>
+              <span class="ing-chip">sữa công thức</span>
+            </div>
+            <span class="dish-add">+ Thêm vào thực đơn</span>
+          </div>
+        </div>
+
+        <div class="add-dish-card">
+          <span class="plus">+</span>
+          <span class="lbl">Thêm món mới vào Ngân hàng</span>
+          <span class="hint">Tên món · Nguyên liệu · Ảnh (tuỳ chọn)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assign to Daily Menu -->
+    <div class="section-divider">
+      <h2>Gán món cho Thực đơn ngày</h2>
+      <div class="line"></div>
+      <span class="sub">Thứ Năm 20/08/2026 · tách riêng theo Nhóm khẩu phần</span>
+    </div>
+
+    <div class="assign-grid">
+      <div class="assign-col">
+        <h3>👨‍👩‍👧 Người lớn &amp; bé 4 tuổi</h3>
+        <div class="group-sub">3 bữa · có thể ghi chú điều chỉnh riêng cho từng bữa</div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Sáng</span>
+            <span class="meal-select"><span>Bún riêu cua</span><span class="chev">▾</span></span>
+          </div>
+          <input class="note-input" placeholder="Ghi chú điều chỉnh (tuỳ chọn)…">
+        </div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Trưa</span>
+            <span class="meal-select"><span>Cơm, Bò xào thập cẩm</span><span class="chev">▾</span></span>
+          </div>
+          <input class="note-input filled" value="Bớt cay, cắt nhỏ miếng thịt cho bé 4 tuổi">
+        </div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Tối</span>
+            <span class="meal-select"><span>Canh chua cá lóc, rau muống xào tỏi</span><span class="chev">▾</span></span>
+          </div>
+          <input class="note-input" placeholder="Ghi chú điều chỉnh (tuỳ chọn)…">
+        </div>
+      </div>
+
+      <div class="assign-col">
+        <h3>🍼 Bé dưới 1 tuổi</h3>
+        <div class="group-sub">4 bữa ăn dặm · hoàn toàn độc lập với nhóm còn lại</div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Sáng</span>
+            <span class="meal-select"><span>Cháo yến mạch bí đỏ</span><span class="chev">▾</span></span>
+          </div>
+        </div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Trưa</span>
+            <span class="meal-select"><span>Cháo thịt bằm rau ngót</span><span class="chev">▾</span></span>
+          </div>
+        </div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Tối</span>
+            <span class="meal-select"><span>Súp bí đỏ khoai lang</span><span class="chev">▾</span></span>
+          </div>
+        </div>
+
+        <div class="meal-slot">
+          <div class="meal-slot-head">
+            <span class="meal-time">Phụ</span>
+            <span class="meal-select"><span>Sữa công thức 200ml</span><span class="chev">▾</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <span class="icon">ℹ</span>
+      <div class="txt"><b>Hai nhóm khẩu phần hoàn toàn độc lập</b> — món ăn, khung giờ và ghi chú điều chỉnh của "Người lớn &amp; bé 4 tuổi" không ảnh hưởng đến thực đơn ăn dặm của "Bé dưới 1 tuổi", và ngược lại. Món trong Ngân hàng chỉ được đưa vào Thực đơn ngày khi được chọn thủ công ở đây.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleTheme(){
+  var html = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  btn.textContent = isDark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>

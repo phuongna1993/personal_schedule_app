@@ -1,0 +1,54 @@
+// Schema Prisma — App Quản Lý Cá Nhân Đa Năng
+//
+// AD-1: mỗi module sở hữu độc quyền tập model của riêng nó. Các model dưới đây
+//       thuộc module Lịch trình (`app/lich-trinh`). Module khác không được
+//       import/query trực tiếp chúng.
+// AD-5: không có model User/Session/Account và không có cột phân vùng tenant.
+// AD-6: file DB nằm ở `app-data/db.sqlite`, ngoài git repo.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Module Lịch trình
+// ---------------------------------------------------------------------------
+
+/// Mẫu lịch trình (Routine Template) — "config hiện hành" theo AD-2.
+/// Chỉ tồn tại đúng một hàng (singleton) cho người dùng cục bộ duy nhất (AD-5).
+/// Sửa Mẫu KHÔNG bao giờ ghi đè lên `LichTrinhNgay` đã phát sinh — hai bảng
+/// tách biệt hoàn toàn ở tầng vật lý (AD-2).
+model MauLichTrinh {
+  id    Int    @id @default(autoincrement())
+  tasks Task[]
+}
+
+/// Task mặc định của Mẫu lịch trình.
+/// Theo AD-2 đây là bảng riêng, KHÔNG dùng chung với Task của một
+/// `LichTrinhNgay` cụ thể (bảng đó thuộc Story 2, chưa tồn tại).
+model Task {
+  id Int @id @default(autoincrement())
+
+  /// Tên việc — bắt buộc, không được rỗng.
+  ten String
+
+  /// Thời hạn: một khung giờ TRONG chính ngày đó, dạng "HH:mm" (24h).
+  /// Lưu String thay vì DateTime vì đây là time-of-day không gắn với một ngày
+  /// cụ thể nào — Mẫu là bản cấu hình, không phải dữ liệu của một ngày.
+  thoiHan String
+
+  /// Mức ưu tiên: "Cao" | "TrungBinh" | "Thap".
+  /// SQLite không hỗ trợ enum trong Prisma, nên lưu String và ép ràng buộc ở
+  /// tầng ứng dụng — xem `MUC_UU_TIEN` trong `app/lich-trinh/queries.ts`.
+  mucUuTien String
+
+  mauLichTrinhId Int
+  mauLichTrinh   MauLichTrinh @relation(fields: [mauLichTrinhId], references: [id], onDelete: Cascade)
+
+  @@index([mauLichTrinhId])
+}

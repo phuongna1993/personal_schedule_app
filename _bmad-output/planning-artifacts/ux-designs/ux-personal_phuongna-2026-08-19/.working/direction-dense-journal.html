@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Hướng B — Nhật Ký Hôm Nay (Dense Journal Feed)</title>
+<style>
+/* ============================================================
+   HƯỚNG B — "NHẬT KÝ HÔM NAY" (dense single-column journal feed)
+   Tokens (mandatory palette, không đổi hex):
+     --bg #F5F1EA  --surface #FCFAF6  --surface-alt #EAE3D6
+     --border #DDD3BF  --text-1 #3D3730  --text-2 #665D4F
+     --text-3 #948A78  --accent/--highlight #7A9471  --accent-ink #FFFFFF
+     --success #6B8F5E
+   Chỉ dùng hairline + đậm nhạt chữ để tạo phân cấp — không thêm màu.
+   ============================================================ */
+:root{
+  --bg:#F5F1EA; --surface:#FCFAF6; --surface-alt:#EAE3D6; --border:#DDD3BF;
+  --text-1:#3D3730; --text-2:#665D4F; --text-3:#948A78;
+  --accent:#7A9471; --accent-ink:#FFFFFF; --success:#6B8F5E;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; padding:40px 24px 64px; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text-1); display:flex; flex-direction:column; align-items:center; gap:28px;
+}
+.page-head{max-width:900px; text-align:center;}
+.tag-row{display:flex; gap:8px; justify-content:center; margin-bottom:10px;}
+.tag{font-size:11px; font-weight:600; color:var(--accent); background:var(--surface-alt); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+.page-head h1{font-size:22px; font-weight:700; margin:0 0 6px;}
+.page-head p.rationale{font-size:14.5px; line-height:1.7; color:var(--text-2); margin:0; text-align:left;}
+
+.browser-frame{
+  width:100%; max-width:1180px; background:var(--surface);
+  border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 24px 48px -24px rgba(61,55,48,.25);
+  overflow:hidden;
+}
+.chrome-bar{display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--surface-alt); border-bottom:1px solid var(--border);}
+.dots{display:flex; gap:6px;}
+.dot{width:9px; height:9px; border-radius:50%; background:var(--text-3); opacity:.3;}
+.addr{flex:1; background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:5px 12px; font-size:12px; color:var(--text-3); text-align:center; font-family:Georgia,serif;}
+
+.app{background:var(--bg); padding:30px 0 50px; display:flex; justify-content:center;}
+.feed{width:640px; max-width:92%;}
+
+.feed-date{font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; margin-bottom:2px;}
+.feed-summary{font-size:12.5px; color:var(--text-3); margin-bottom:26px; border-bottom:1px solid var(--border); padding-bottom:16px;}
+
+.sec{margin-bottom:26px;}
+.sec-label{font-size:11px; font-weight:700; letter-spacing:1.2px; color:var(--text-3); text-transform:uppercase; margin-bottom:10px;}
+.sec-label b{color:var(--accent);}
+
+.row{display:flex; align-items:baseline; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13.5px;}
+.row:last-child{border-bottom:none;}
+.chk{font-size:14px; color:var(--text-3); width:14px;}
+.time{width:42px; color:var(--text-3); font-variant-numeric:tabular-nums; font-size:12.5px;}
+.name{flex:1;}
+.name.hi{font-weight:700;}
+.pri-tag{font-size:10.5px; color:var(--text-3); border:1px solid var(--border); border-radius:3px; padding:1px 5px;}
+
+.exp-line{font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--border);}
+.exp-line b{font-weight:700;}
+.alert-line{
+  margin-top:8px; padding:8px 0 8px 12px; border-left:3px solid var(--accent);
+  font-size:12.5px; line-height:1.6; color:var(--text-1);
+}
+.alert-line b{font-weight:700;}
+
+.meal-line{font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--border); line-height:1.6;}
+.meal-line:last-child{border-bottom:none;}
+.meal-line .grp{font-weight:700; margin-right:4px;}
+.note-inline{color:var(--text-3); font-style:italic;}
+
+.study-line{font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--border);}
+.study-line:last-child{border-bottom:none;}
+.study-line b{font-weight:700;}
+.empty-line{
+  padding:10px 0; font-size:12.5px; color:var(--text-3); font-style:italic;
+  border:1px dashed var(--border); border-radius:6px; padding-left:12px; margin-top:8px;
+}
+.empty-line .cta{color:var(--accent); font-style:normal; font-weight:700; margin-left:6px;}
+
+.quickbar{display:flex; gap:18px; margin-top:30px; padding-top:16px; border-top:1px solid var(--border);}
+.qbtn{font-size:12px; color:var(--text-2); font-weight:600; border-bottom:1px solid var(--text-2); padding-bottom:2px;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="tag-row"><span class="tag">Hướng B</span><span class="tag">Dense · Journal</span></div>
+  <h1>Nhật Ký Hôm Nay — feed một cột, text-forward</h1>
+  <p class="rationale">Hướng này bỏ hết khung thẻ và đổ bóng, dùng đường kẻ mảnh và đậm nhạt của chữ để phân cấp — cả 4 mảng nằm gọn trong một cột dọc như một trang nhật ký, đọc lướt và ghi xong trong chưa đầy một phút. Tiêu đề serif tạo cảm giác cá nhân, riêng tư hơn là một "bảng điều khiển" công việc, còn cảnh báo ngân sách chỉ là một dòng chữ đậm với vạch nhấn bên trái, không phá vỡ nhịp đọc. Trạng thái rỗng (chưa ghi buổi học tiếng Anh hôm nay) được thể hiện bằng khung nét đứt nhẹ, mời gọi thay vì nhắc nhở.</p>
+</div>
+
+<div class="browser-frame">
+  <div class="chrome-bar">
+    <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <div class="addr">nhatky.local/19-08-2026</div>
+  </div>
+  <div class="app">
+    <div class="feed">
+      <div class="feed-date">Thứ Tư, 19 tháng 08, 2026</div>
+      <div class="feed-summary">6 việc cho ngày mai · 1 giao dịch hôm nay · 2 nhóm khẩu phần đã lên thực đơn mai · 1/2 buổi học hôm nay</div>
+
+      <div class="sec">
+        <div class="sec-label">01 · Lịch trình — <b>ngày mai, Thứ Năm 20/08</b></div>
+        <div class="row"><span class="chk">☐</span><span class="time">06:30</span><span class="name hi">Chuẩn bị đồ đi học cho bé lớn</span><span class="pri-tag">Cao</span></div>
+        <div class="row"><span class="chk">☐</span><span class="time">08:00</span><span class="name hi">Standup team dự án</span><span class="pri-tag">Cao</span></div>
+        <div class="row"><span class="chk">☐</span><span class="time">12:00</span><span class="name">Pha sữa cho bé nhỏ</span><span class="pri-tag">TB</span></div>
+        <div class="row"><span class="chk">☐</span><span class="time">17:30</span><span class="name hi">Đón bé lớn tan trường</span><span class="pri-tag">Cao</span></div>
+        <div class="row"><span class="chk">☐</span><span class="time">19:00</span><span class="name">Nấu bữa tối</span><span class="pri-tag">TB</span></div>
+        <div class="row"><span class="chk">☐</span><span class="time">20:00</span><span class="name">Học Automation Test 30 phút</span><span class="pri-tag">Thấp</span></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-label">02 · Chi tiêu — <b>hôm nay, Thứ Tư 19/08</b></div>
+        <div class="exp-line">- <b>85.000đ</b> · Ăn uống · Mua rau, thịt buổi chiều</div>
+        <div class="alert-line">⚠ <b>Ăn uống còn 26% ngân sách tháng</b> (đã chi 2.200.000 / 3.000.000đ) — sắp chạm mức cảnh báo 30%.</div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-label">03 · Thực đơn — <b>ngày mai, Thứ Năm 20/08</b></div>
+        <div class="meal-line"><span class="grp">Người lớn &amp; bé 4 tuổi</span> — Sáng: Bún riêu cua · Trưa: Cơm, Bò xào thập cẩm <span class="note-inline">(bớt cay, cắt nhỏ)</span> · Tối: Canh chua cá lóc, rau muống xào tỏi</div>
+        <div class="meal-line"><span class="grp">Bé dưới 1 tuổi</span> — Trưa: Cháo yến mạch bí đỏ · Tối: Cháo lươn cà rốt</div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-label">04 · Học tập — <b>hôm nay, Thứ Tư 19/08</b></div>
+        <div class="study-line"><b>Automation Test</b> · Mốc 3/7 — Thực hành Playwright POM – trang đăng nhập · 30 phút</div>
+        <div class="empty-line">Tiếng Anh — chưa ghi buổi học hôm nay<span class="cta">+ Bắt đầu buổi học</span></div>
+      </div>
+
+      <div class="quickbar">
+        <span class="qbtn">+ Task</span>
+        <span class="qbtn">+ Giao dịch</span>
+        <span class="qbtn">+ Món ăn</span>
+        <span class="qbtn">+ Buổi học</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
