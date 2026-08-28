@@ -2,9 +2,9 @@
 title: 'Story 1: Routine Template (Mẫu lịch trình)'
 type: 'feature'
 created: '2026-08-29'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
-baseline_commit: '72fec26'
+baseline_commit: 'NO_VCS'
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-personal_phuongna-2026-08-20/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-personal_phuongna-2026-08-19/EXPERIENCE.md'
@@ -106,3 +106,68 @@ Task's `mucUuTien` is a fixed 3-value enum (Cao/TrungBinh/Thap), not free text �
 - Empty template (first run) matrix row: manually verified only (delete all Tasks, confirm the empty-state prompt + CTA render) — no automated component test exists yet, since no component-test infra is set up and QA strategy remains Deferred in ARCHITECTURE-SPINE.md. Revisit once that decision is made.
 
 **Post-implementation fix:** the mockups (and this story's first implementation pass) carried an invented brand name ("MEBỖI") the human had already rejected during the UX phase. Scrubbed from `page.tsx` and all 4 `mockups/*.html` files during review — see `_bmad-output/planning-artifacts/ux-designs/ux-personal_phuongna-2026-08-19/.memlog.md`.
+
+## Suggested Review Order
+
+**Server Actions — the write path (AD-3)**
+
+- Entry point: every mutation funnels through this try/catch wrapper so a thrown Prisma error becomes `{ok:false}` instead of an unhandled rejection.
+  [`actions.ts:52`](../../../../app/lich-trinh/actions.ts#L52)
+
+- Runtime payload guard — Server Actions are public HTTP endpoints with types erased, so this rejects non-object/array input before any property access.
+  [`actions.ts:72`](../../../../app/lich-trinh/actions.ts#L72)
+
+- Singleton race fix — an atomic `upsert` replaces a check-then-create, so two concurrent first writes can never produce two template rows.
+  [`actions.ts:122`](../../../../app/lich-trinh/actions.ts#L122)
+
+- Ownership-scoped writes — `suaTask`/`xoaTask` now match on `{id, mauLichTrinhId}`, not bare `id`, enforcing AD-1 in the query itself.
+  [`actions.ts:171`](../../../../app/lich-trinh/actions.ts#L171)
+
+**Data model (AD-1, AD-2)**
+
+- `MauLichTrinh` is the "config hiện hành" — a physically separate table from the not-yet-built `LichTrinhNgay`, per AD-2.
+  [`schema.prisma:26`](../../../../prisma/schema.prisma#L26)
+
+- `Task` stores `mucUuTien`/`thoiHan` as plain strings (SQLite has no enum) with the 3-value constraint enforced in application code, not the schema.
+  [`schema.prisma:34`](../../../../prisma/schema.prisma#L34)
+
+**Read path (AD-1) — the only way another module may query this data**
+
+- `layMauLichTrinh()` is the sole read function this module exports; note the empty-DB and enum-normalization fallbacks.
+  [`queries.ts:22`](../../../../app/lich-trinh/queries.ts#L22)
+
+- Out-of-union `mucUuTien` values from a corrupted row are silently coerced back to `"TrungBinh"` rather than surfaced — a known, deferred trade-off.
+  [`queries.ts:40`](../../../../app/lich-trinh/queries.ts#L40)
+
+**Shared SQLite path (AD-6)**
+
+- Single source of truth for the DB file location, so the Next.js runtime and the Prisma CLI can never resolve to different files.
+  [`duongDanDb.ts:25`](../../../../lib/duongDanDb.ts#L25)
+
+- `lib/db.ts` now delegates path resolution here instead of computing it locally.
+  [`db.ts:20`](../../../../lib/db.ts#L20)
+
+**UI (CAP-1)**
+
+- Server Component entry — reads via the module's own `queries.ts`, never Prisma directly (AD-1).
+  [`page.tsx:26`](../../../../app/lich-trinh/mau-lich-trinh/page.tsx#L26)
+
+- Client-side rejection handling — a failed Server Action call now surfaces `LOI_KET_NOI` instead of failing silently.
+  [`TrinhSoanThaoMau.tsx:68`](../../../../app/lich-trinh/mau-lich-trinh/TrinhSoanThaoMau.tsx#L68)
+
+- Same pattern on the save path.
+  [`TrinhSoanThaoMau.tsx:210`](../../../../app/lich-trinh/mau-lich-trinh/TrinhSoanThaoMau.tsx#L210)
+
+**Peripherals**
+
+- New read-path test — empty DB, enum normalization, and ordering.
+  [`queries.test.ts:1`](../../../../app/lich-trinh/queries.test.ts#L1)
+
+- Updated write-path tests — atomic upsert, ownership scoping, `LOI_HE_THONG` on a thrown error.
+  [`actions.test.ts:1`](../../../../app/lich-trinh/actions.test.ts#L1)
+
+- Widened to catch `.tsx` tests too, so a future component test is never silently uncollected.
+  [`vitest.config.ts:11`](../../../../vitest.config.ts#L11)
+
+- `predev` now runs migrations automatically, so a fresh checkout doesn't fail with "no such table".
+  [`package.json:6`](../../../../package.json#L6)
