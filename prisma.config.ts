@@ -1,4 +1,5 @@
 import { defineConfig } from "prisma/config";
+import { DUONG_DAN_DB_TUONG_DOI } from "./lib/duongDanDb";
 
 /**
  * AD-6 — một môi trường cục bộ duy nhất: không có biến môi trường theo môi
@@ -6,7 +7,9 @@ import { defineConfig } from "prisma/config";
  * `DATABASE_URL`. File nằm trong `app-data/` (gitignored).
  *
  * Đường dẫn tương đối được Prisma CLI giải theo thư mục gốc dự án (nơi chứa
- * file config này).
+ * file config này). Giá trị lấy từ `lib/duongDanDb.ts` — cùng module mà
+ * `lib/db.ts` dùng ở runtime, để CLI và app không thể trỏ vào hai file khác
+ * nhau.
  */
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -14,6 +17,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: "file:./app-data/db.sqlite",
+    url: `file:./${DUONG_DAN_DB_TUONG_DOI}`,
   },
 });

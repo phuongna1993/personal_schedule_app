@@ -15,8 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
   prismaMock: {
     mauLichTrinh: {
-      findFirst: vi.fn(),
-      create: vi.fn(),
+      upsert: vi.fn(),
     },
     task: {
       create: vi.fn(),
@@ -40,7 +39,7 @@ const TASK_HOP_LE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  prismaMock.mauLichTrinh.findFirst.mockResolvedValue({ id: 1 });
+  prismaMock.mauLichTrinh.upsert.mockResolvedValue({ id: 1 });
   prismaMock.task.create.mockImplementation(
     async ({ data }: { data: Record<string, unknown> }) => ({
       id: 42,
@@ -112,19 +111,66 @@ describe("themTask", () => {
       },
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh/mau-lich-trinh");
+    // Màn hình Lịch trình hôm nay (Story 2) cũng được làm mới, phòng xa.
+    expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh");
   });
 
-  it("tạo hàng MauLichTrinh lười ở lần ghi đầu tiên", async () => {
-    prismaMock.mauLichTrinh.findFirst.mockResolvedValue(null);
-    prismaMock.mauLichTrinh.create.mockResolvedValue({ id: 7 });
+  it("tạo hàng MauLichTrinh lười bằng MỘT lệnh upsert nguyên tử", async () => {
+    prismaMock.mauLichTrinh.upsert.mockResolvedValue({ id: 1 });
 
     const ketQua = await themTask(TASK_HOP_LE);
 
     expect(ketQua.ok).toBe(true);
-    expect(prismaMock.mauLichTrinh.create).toHaveBeenCalledOnce();
-    expect(prismaMock.task.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ mauLichTrinhId: 7 }),
+    // Nguyên tử: không có khoảng hở findFirst-rồi-create để hai lệnh ghi gần
+    // như đồng thời chèn được hai hàng Mẫu.
+    expect(prismaMock.mauLichTrinh.upsert).toHaveBeenCalledWith({
+      where: { id: 1 },
+      create: { id: 1 },
+      update: {},
     });
+    expect(prismaMock.task.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ mauLichTrinhId: 1 }),
+    });
+  });
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    // Action có log lỗi ra server; nuốt log để output test sạch.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.task.create.mockRejectedValue(
+      new Error("SQLITE_BUSY: database is locked"),
+    );
+
+    const ketQua = await themTask(TASK_HOP_LE);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+    expect(ketQua.error.message).toBe("Không lưu được, thử lại.");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("payload thô từ HTTP (kiểu bị xoá ở runtime)", () => {
+  // Server Action là một endpoint công khai: client có thể gửi bất cứ gì.
+  const RAC = [null, undefined, "chuỗi", 42, [], true];
+
+  it.each(RAC)("themTask chặn payload %o trước khi chạm thuộc tính", async (rac) => {
+    const ketQua = await themTask(rac as never);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("DU_LIEU_KHONG_HOP_LE");
+    expect(prismaMock.task.create).not.toHaveBeenCalled();
+    expect(prismaMock.mauLichTrinh.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each(RAC)("suaTask chặn payload %o trước khi chạm thuộc tính", async (rac) => {
+    const ketQua = await suaTask(3, rac as never);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("DU_LIEU_KHONG_HOP_LE");
+    expect(prismaMock.task.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -139,12 +185,14 @@ describe("suaTask", () => {
     expect(prismaMock.task.updateMany).not.toHaveBeenCalled();
   });
 
-  it("chỉ cập nhật đúng Task được chỉ định", async () => {
+  it("chỉ cập nhật đúng Task được chỉ định, và phải thuộc Mẫu của module", async () => {
     const ketQua = await suaTask(3, { ...TASK_HOP_LE, thoiHan: "20:00" });
 
     expect(ketQua.ok).toBe(true);
+    // `mauLichTrinhId` nằm trong chính câu truy vấn: bất biến AD-1 được DB ép,
+    // không chỉ là quy ước gọi hàm.
     expect(prismaMock.task.updateMany).toHaveBeenCalledWith({
-      where: { id: 3 },
+      where: { id: 3, mauLichTrinhId: 1 },
       data: { ten: "Đưa bé đi học", thoiHan: "20:00", mucUuTien: "TrungBinh" },
     });
   });
@@ -166,8 +214,11 @@ describe("xoaTask", () => {
     const ketQua = await xoaTask(3);
 
     expect(ketQua.ok).toBe(true);
-    expect(prismaMock.task.deleteMany).toHaveBeenCalledWith({ where: { id: 3 } });
+    expect(prismaMock.task.deleteMany).toHaveBeenCalledWith({
+      where: { id: 3, mauLichTrinhId: 1 },
+    });
     expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh/mau-lich-trinh");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh");
   });
 
   it("báo lỗi khi Task không còn tồn tại", async () => {
@@ -178,5 +229,17 @@ describe("xoaTask", () => {
     expect(ketQua.ok).toBe(false);
     if (ketQua.ok) throw new Error("unreachable");
     expect(ketQua.error.code).toBe("KHONG_TIM_THAY_TASK");
+  });
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    // Action có log lỗi ra server; nuốt log để output test sạch.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.task.deleteMany.mockRejectedValue(new Error("disk I/O error"));
+
+    const ketQua = await xoaTask(3);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
   });
 });

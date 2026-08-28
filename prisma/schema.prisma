@@ -44,7 +44,7 @@ model Task {
 
   /// Mức ưu tiên: "Cao" | "TrungBinh" | "Thap".
   /// SQLite không hỗ trợ enum trong Prisma, nên lưu String và ép ràng buộc ở
-  /// tầng ứng dụng — xem `MUC_UU_TIEN` trong `app/lich-trinh/queries.ts`.
+  /// tầng ứng dụng — xem `MUC_UU_TIEN` trong `app/lich-trinh/model.ts`.
   mucUuTien String
 
   mauLichTrinhId Int

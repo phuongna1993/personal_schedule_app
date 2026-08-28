@@ -1,6 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { layDuongDanFileDb } from "./duongDanDb";
 import { PrismaClient } from "./generated/prisma/client";
 
 /**
@@ -10,17 +9,16 @@ import { PrismaClient } from "./generated/prisma/client";
  * biến môi trường theo môi trường triển khai: chỉ tồn tại đúng một môi trường
  * cục bộ, nên đường dẫn được suy ra thẳng từ thư mục gốc dự án.
  *
+ * Vị trí file đến từ `lib/duongDanDb.ts` — cùng module mà `prisma.config.ts`
+ * dùng, nên runtime và Prisma CLI không thể trỏ vào hai file khác nhau.
+ *
  * Không file nào khác trong app được import `PrismaClient` hay
  * `better-sqlite3` trực tiếp.
  */
-const DB_DIR = path.join(process.cwd(), "app-data");
-const DB_FILE = path.join(DB_DIR, "db.sqlite");
-
 function taoPrismaClient(): PrismaClient {
-  // `app-data/` bị gitignore nên có thể chưa tồn tại trên một bản checkout mới.
-  fs.mkdirSync(DB_DIR, { recursive: true });
-
-  const adapter = new PrismaBetterSqlite3({ url: `file:${DB_FILE}` });
+  const adapter = new PrismaBetterSqlite3({
+    url: `file:${layDuongDanFileDb()}`,
+  });
   return new PrismaClient({ adapter });
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import type { LoiAction } from "@/lib/ketQua";
+import type { KetQua, LoiAction } from "@/lib/ketQua";
 import { suaTask, themTask, xoaTask } from "../actions";
 import {
   LOP_BADGE_UU_TIEN,
@@ -21,6 +21,16 @@ const FORM_TRONG: DuLieuForm = {
   ten: "",
   thoiHan: "08:00",
   mucUuTien: "TrungBinh",
+};
+
+/**
+ * Server Action có thể reject trước cả khi chạy tới `KetQua` (mất mạng, server
+ * restart giữa chừng, lỗi tuần tự hoá payload). Không bắt thì `useTransition`
+ * nuốt lỗi và người dùng thấy nút "Lưu" chớp một cái rồi không có gì xảy ra.
+ */
+const LOI_KET_NOI: LoiAction = {
+  code: "LOI_KET_NOI",
+  message: "Không lưu được, thử lại.",
 };
 
 /**
@@ -52,8 +62,13 @@ export default function TrinhSoanThaoMau({ tasks }: { tasks: TaskMau[] }) {
   function xoa(task: TaskMau) {
     setLoiHang(null);
     batDau(async () => {
-      const ketQua = await xoaTask(task.id);
-      if (!ketQua.ok) setLoiHang(ketQua.error);
+      try {
+        const ketQua = await xoaTask(task.id);
+        if (!ketQua.ok) setLoiHang(ketQua.error);
+      } catch (loi) {
+        console.error("[mau-lich-trinh] xoaTask thất bại:", loi);
+        setLoiHang(LOI_KET_NOI);
+      }
     });
   }
 
@@ -157,10 +172,6 @@ export default function TrinhSoanThaoMau({ tasks }: { tasks: TaskMau[] }) {
   );
 }
 
-type KetQuaLuu =
-  | { ok: true; data: unknown }
-  | { ok: false; error: LoiAction };
-
 function FormTask({
   tieuDe,
   banDau,
@@ -174,7 +185,9 @@ function FormTask({
   banDau: DuLieuForm;
   nhanLuu: string;
   inline?: boolean;
-  onLuu: (duLieu: DuLieuForm) => Promise<KetQuaLuu>;
+  // Dùng thẳng `KetQua` của `lib/ketQua.ts` (AD-3) thay vì khai lại một kiểu
+  // cùng hình dạng ở đây — khai lại chính là kiểu trôi mà AD-3 muốn tránh.
+  onLuu: (duLieu: DuLieuForm) => Promise<KetQua<unknown>>;
   onHuy: () => void;
   onXong: () => void;
 }) {
@@ -187,11 +200,16 @@ function FormTask({
     su_kien.preventDefault();
     setLoi(null);
     batDau(async () => {
-      const ketQua = await onLuu(gia);
-      if (ketQua.ok) {
-        onXong();
-      } else {
-        setLoi(ketQua.error);
+      try {
+        const ketQua = await onLuu(gia);
+        if (ketQua.ok) {
+          onXong();
+        } else {
+          setLoi(ketQua.error);
+        }
+      } catch (loiGoi) {
+        console.error("[mau-lich-trinh] lưu Task thất bại:", loiGoi);
+        setLoi(LOI_KET_NOI);
       }
     });
   }

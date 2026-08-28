@@ -2,7 +2,7 @@
 title: 'Story 1: Routine Template (Mẫu lịch trình)'
 type: 'feature'
 created: '2026-08-29'
-status: 'in-progress'
+status: 'in-review'
 review_loop_iteration: 0
 baseline_commit: '72fec26'
 context:
@@ -55,6 +55,11 @@ context:
 - `app/lich-trinh/queries.ts` -- new; exported read function `layMauLichTrinh()` for this module (AD-1)
 - `.gitignore` -- new; excludes `app-data/` (AD-6)
 
+Additional files (not in the original Code Map, required by the above -- same list as under Tasks & Acceptance):
+
+- `lib/duongDanDb.ts` -- new; the single source of truth for the SQLite file location, imported by both `lib/db.ts` and `prisma.config.ts` (AD-6)
+- `app/lich-trinh/queries.test.ts` -- new; unit test for the read path `layMauLichTrinh()`
+
 ## Tasks & Acceptance
 
 **Execution:**
@@ -66,6 +71,8 @@ context:
 - [x] `app/lich-trinh/mau-lich-trinh/page.tsx` -- Server Component rendering the Task list + add/edit/delete UI per the mockup -- CAP-1 UI
 - [x] `.gitignore` + `git init` -- initialize version control, exclude `app-data/` -- AD-6
 - [x] unit test for `actions.ts` -- cover the empty-`ten` validation edge case from the I/O matrix
+- [x] unit test for `queries.ts` -- cover the read path: no `MauLichTrinh` row yet -> `[]`, out-of-union `mucUuTien` normalized to `TrungBinh`, ordering by `thoiHan` then `id`
+- [x] `package.json` -- `predev` script running `prisma migrate deploy`, so a fresh checkout does not fail with "no such table: MauLichTrinh" on the first `npm run dev`
 
 **Additional files (not in the original Code Map, required by the above):**
 - `prisma.config.ts` -- Prisma 7 moved the datasource url out of `schema.prisma`; holds the literal `file:./app-data/db.sqlite` (AD-6: no per-environment env vars)
@@ -73,7 +80,9 @@ context:
 - `app/lich-trinh/model.ts` -- pure enum/validator/type module, split out of `queries.ts` so Client Components can import `MUC_UU_TIEN` without pulling Prisma into the browser bundle
 - `app/layout.tsx`, `app/globals.css`, `app/NutDoiTheme.tsx` -- root shell + DESIGN.md tokens + the mandatory manual light/dark toggle
 - `app/lich-trinh/mau-lich-trinh/TrinhSoanThaoMau.tsx` -- Client Component holding the add/edit/delete interaction that calls the Server Actions
-- `vitest.config.ts` -- test runner (QA strategy was Deferred in the spine)
+- `vitest.config.ts` -- test runner (QA strategy was Deferred in the spine); `include` matches `.test.{ts,tsx}` so a future component test cannot be silently uncollected
+- `lib/duongDanDb.ts` -- single source of truth for the SQLite file location, imported by both `lib/db.ts` (runtime) and `prisma.config.ts` (CLI) so the two can never point at different files (AD-6)
+- `app/lich-trinh/queries.test.ts` -- unit test for the read path `layMauLichTrinh()`
 
 **Acceptance Criteria:**
 - Given an empty template, when the user adds a Task with a name/time/priority, then it appears in the list without a page reload.
@@ -94,3 +103,6 @@ Task's `mucUuTien` is a fixed 3-value enum (Cao/TrungBinh/Thap), not free text �
 
 **Manual checks (if no CLI):**
 - Add, edit, and delete a Task in the browser; confirm the list updates without a full page reload each time.
+- Empty template (first run) matrix row: manually verified only (delete all Tasks, confirm the empty-state prompt + CTA render) — no automated component test exists yet, since no component-test infra is set up and QA strategy remains Deferred in ARCHITECTURE-SPINE.md. Revisit once that decision is made.
+
+**Post-implementation fix:** the mockups (and this story's first implementation pass) carried an invented brand name ("MEBỖI") the human had already rejected during the UX phase. Scrubbed from `page.tsx` and all 4 `mockups/*.html` files during review — see `_bmad-output/planning-artifacts/ux-designs/ux-personal_phuongna-2026-08-19/.memlog.md`.
