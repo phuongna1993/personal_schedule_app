@@ -39,7 +39,6 @@ export default async function TrangMauLichTrinh() {
         </div>
         <div className="header-tools">
           <NutDoiTheme />
-          <span className="brand">MEBỖI</span>
         </div>
       </div>
 

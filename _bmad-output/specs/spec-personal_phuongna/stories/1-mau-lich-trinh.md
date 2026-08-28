@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-08-29'
 status: 'in-progress'
 review_loop_iteration: 0
-baseline_commit: 'NO_VCS'
+baseline_commit: '72fec26'
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-personal_phuongna-2026-08-20/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-personal_phuongna-2026-08-19/EXPERIENCE.md'
@@ -58,14 +58,22 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `package.json` / `tsconfig.json` / `next.config.ts` -- scaffold a new Next.js 16.3.x + TypeScript project -- establishes the paradigm from ARCHITECTURE-SPINE.md
-- [ ] `prisma/schema.prisma` -- define `MauLichTrinh` and its `Task` model (autoincrement Int id) -- CAP-1 data shape
-- [ ] `lib/db.ts` -- Prisma Client singleton wired to `app-data/db.sqlite` -- AD-6
-- [ ] `app/lich-trinh/actions.ts` -- `themTask`, `suaTask`, `xoaTask` Server Actions, each returning `{ok:true,data}|{ok:false,error:{code,message,field?}}` -- AD-3 consistency convention
-- [ ] `app/lich-trinh/queries.ts` -- `layMauLichTrinh()` read function -- AD-1 (module owns its reads too)
-- [ ] `app/lich-trinh/mau-lich-trinh/page.tsx` -- Server Component rendering the Task list + add/edit/delete UI per the mockup -- CAP-1 UI
-- [ ] `.gitignore` + `git init` -- initialize version control, exclude `app-data/` -- AD-6
-- [ ] unit test for `actions.ts` -- cover the empty-`ten` validation edge case from the I/O matrix
+- [x] `package.json` / `tsconfig.json` / `next.config.ts` -- scaffold a new Next.js 16.3.x + TypeScript project -- establishes the paradigm from ARCHITECTURE-SPINE.md
+- [x] `prisma/schema.prisma` -- define `MauLichTrinh` and its `Task` model (autoincrement Int id) -- CAP-1 data shape
+- [x] `lib/db.ts` -- Prisma Client singleton wired to `app-data/db.sqlite` -- AD-6
+- [x] `app/lich-trinh/actions.ts` -- `themTask`, `suaTask`, `xoaTask` Server Actions, each returning `{ok:true,data}|{ok:false,error:{code,message,field?}}` -- AD-3 consistency convention
+- [x] `app/lich-trinh/queries.ts` -- `layMauLichTrinh()` read function -- AD-1 (module owns its reads too)
+- [x] `app/lich-trinh/mau-lich-trinh/page.tsx` -- Server Component rendering the Task list + add/edit/delete UI per the mockup -- CAP-1 UI
+- [x] `.gitignore` + `git init` -- initialize version control, exclude `app-data/` -- AD-6
+- [x] unit test for `actions.ts` -- cover the empty-`ten` validation edge case from the I/O matrix
+
+**Additional files (not in the original Code Map, required by the above):**
+- `prisma.config.ts` -- Prisma 7 moved the datasource url out of `schema.prisma`; holds the literal `file:./app-data/db.sqlite` (AD-6: no per-environment env vars)
+- `lib/ketQua.ts` -- the AD-3 `{ok,data}|{ok,error}` union, shared by every module's actions
+- `app/lich-trinh/model.ts` -- pure enum/validator/type module, split out of `queries.ts` so Client Components can import `MUC_UU_TIEN` without pulling Prisma into the browser bundle
+- `app/layout.tsx`, `app/globals.css`, `app/NutDoiTheme.tsx` -- root shell + DESIGN.md tokens + the mandatory manual light/dark toggle
+- `app/lich-trinh/mau-lich-trinh/TrinhSoanThaoMau.tsx` -- Client Component holding the add/edit/delete interaction that calls the Server Actions
+- `vitest.config.ts` -- test runner (QA strategy was Deferred in the spine)
 
 **Acceptance Criteria:**
 - Given an empty template, when the user adds a Task with a name/time/priority, then it appears in the list without a page reload.
