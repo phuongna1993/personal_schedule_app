@@ -48,3 +48,13 @@ export type TaskMau = {
   thoiHan: string;
   mucUuTien: MucUuTien;
 };
+
+/**
+ * Một Task trong Lịch trình của một ngày cụ thể (Story 2) — cùng hình dạng
+ * `TaskMau` cộng `daXong`. Model Prisma đứng sau là `TaskNgay`, một bảng
+ * riêng hoàn toàn khỏi `Task` của Mẫu (AD-2) — type ở đây chỉ tình cờ trông
+ * giống `TaskMau`, không phải cùng một hàng dữ liệu.
+ */
+export type TaskNgay = TaskMau & {
+  daXong: boolean;
+};

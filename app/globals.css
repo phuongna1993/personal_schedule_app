@@ -313,9 +313,131 @@ select {
   padding: 18px 2px 6px;
 }
 
-.empty-row .empty-txt {
+.empty-row .empty-txt,
+.empty-txt {
   font-size: 13px;
   color: var(--ink-secondary);
+}
+
+/* --------------------------------------------------------- checkbox --- */
+/* `.chk`/`.bar`/`.mini-progress-*` ported from mockups/dashboard.html:99-111
+   (Story 2 — Lịch trình ngày), remapped onto this file's CSS variables. */
+
+.chk {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-hairline);
+  background: var(--surface-raised);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.chk:checked,
+.chk.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.chk:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--accent-ink);
+}
+
+.chk:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.task-row.done .tname {
+  color: var(--ink-tertiary);
+  text-decoration: line-through;
+}
+
+/* ------------------------------------------------------ mini progress -- */
+
+.mini-progress-wrap {
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.mini-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--ink-tertiary);
+  margin-bottom: 6px;
+}
+
+.bar {
+  height: 6px;
+  background: var(--surface-sunken);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* --------------------------------------------------------- day nav ---- */
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.day-nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.day-nav-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.day-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.day-nav-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  min-width: 160px;
+  text-align: center;
 }
 
 /* ------------------------------------------------------------- forms --- */

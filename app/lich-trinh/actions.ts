@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { type KetQua, thanhCong, thatBai } from "@/lib/ketQua";
+import { layMocNgayVN } from "@/lib/ngayVn";
 import {
   laMucUuTien,
   laThoiHan,
   type MucUuTien,
   type TaskMau,
+  type TaskNgay,
 } from "./model";
+import { layMauLichTrinh } from "./queries";
 
 /**
  * AD-3 — Server Actions là cổng GHI dữ liệu duy nhất của module Lịch trình.
@@ -23,7 +26,7 @@ import {
  */
 
 const DUONG_DAN_MAN_HINH = "/lich-trinh/mau-lich-trinh";
-/** Màn hình Lịch trình hôm nay (Story 2) — revalidate phòng xa, chưa tồn tại. */
+/** Màn hình Lịch trình ngày (Story 2). */
 const DUONG_DAN_LICH_TRINH = "/lich-trinh";
 
 type DuLieuTask = {
@@ -197,5 +200,196 @@ export async function xoaTask(id: number): Promise<KetQua<{ id: number }>> {
 
     lamMoiManHinh();
     return thanhCong({ id });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Lịch trình ngày (Story 2) — AD-2: tách vật lý hoàn toàn khỏi MauLichTrinh/
+// Task ở trên. Mọi Task ở đây là TaskNgay, một bảng Prisma riêng.
+// ---------------------------------------------------------------------------
+
+/**
+ * Khởi tạo lười Lịch trình ngày cho HÔM NAY (giờ VN) từ Mẫu lịch trình hiện
+ * hành, nếu chưa có. Đây là đúng MỘT nơi tạo hàng `LichTrinhNgay` trong toàn
+ * app (AD-3 ngoại lệ 2) — gọi từ đường đọc (`/lich-trinh`'s Server Component),
+ * không phải một cổng ghi công khai riêng cho UI bấm.
+ *
+ * `upsert` là một lệnh nguyên tử trên khoá unique `ngay`, nên hai request gần
+ * như đồng thời trong lần render đầu tiên của ngày KHÔNG thể tạo ra hai hàng.
+ * Chỉ khi hàng chưa tồn tại mới đọc Mẫu hiện hành để copy giá trị Task vào —
+ * copy giá trị, không share hàng/FK với `Task` của Mẫu (AD-2).
+ */
+export async function taoLichTrinhNgayTuMau(): Promise<KetQua<{ id: number }>> {
+  return boiCanhGhi(async () => {
+    const moc = layMocNgayVN();
+
+    const daCo = await prisma.lichTrinhNgay.findUnique({
+      where: { ngay: moc },
+      select: { id: true },
+    });
+    if (daCo) {
+      return thanhCong({ id: daCo.id });
+    }
+
+    const mauTasks = await layMauLichTrinh();
+
+    const row = await prisma.lichTrinhNgay.upsert({
+      where: { ngay: moc },
+      create: {
+        ngay: moc,
+        tasks: {
+          create: mauTasks.map(({ ten, thoiHan, mucUuTien }) => ({
+            ten,
+            thoiHan,
+            mucUuTien,
+          })),
+        },
+      },
+      // Nhánh này chỉ chạy khi một request khác vừa thắng cuộc đua tạo hàng
+      // giữa lúc `findUnique` ở trên và `upsert` này — không ghi gì thêm.
+      update: {},
+    });
+
+    lamMoiManHinh();
+    return thanhCong({ id: row.id });
+  });
+}
+
+type DuLieuTaskNgay = DuLieuTask;
+
+/**
+ * Thêm một Task vào Lịch trình của MỘT ngày cụ thể (`lichTrinhNgayId`).
+ * Không bao giờ viết lên `MauLichTrinh`/`Task` của Mẫu (Boundaries).
+ */
+export async function themTaskNgay(
+  lichTrinhNgayId: number,
+  duLieu: DuLieuTaskNgay,
+): Promise<KetQua<TaskNgay>> {
+  if (!Number.isInteger(lichTrinhNgayId)) {
+    return thatBai("ID_KHONG_HOP_LE", "Lịch trình ngày không hợp lệ.");
+  }
+
+  const daKiemTra = kiemTraTask(duLieu);
+  if (!daKiemTra.ok) return daKiemTra;
+
+  return boiCanhGhi(async () => {
+    const task = await prisma.taskNgay.create({
+      data: { ...daKiemTra.data, lichTrinhNgayId },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({
+      id: task.id,
+      ten: task.ten,
+      thoiHan: task.thoiHan,
+      mucUuTien: daKiemTra.data.mucUuTien,
+      daXong: task.daXong,
+    });
+  });
+}
+
+/**
+ * Sửa tên/thời hạn/mức ưu tiên của một Task trong Lịch trình ngày. Không đổi
+ * `daXong` — đó là việc riêng của `danhDauTask`.
+ *
+ * `where` của `updateMany` kèm cả `id` lẫn `lichTrinhNgayId`: bất biến
+ * "ownership-scoped theo ngày" được chính câu truy vấn ép, không chỉ dựa vào
+ * quy ước gọi hàm — cùng nguyên tắc AD-1 đã áp cho `suaTask` ở trên.
+ */
+export async function suaTaskNgay(
+  id: number,
+  lichTrinhNgayId: number,
+  duLieu: DuLieuTaskNgay,
+): Promise<KetQua<TaskNgay>> {
+  if (!Number.isInteger(id) || !Number.isInteger(lichTrinhNgayId)) {
+    return thatBai("ID_KHONG_HOP_LE", "Task không hợp lệ.");
+  }
+
+  const daKiemTra = kiemTraTask(duLieu);
+  if (!daKiemTra.ok) return daKiemTra;
+
+  return boiCanhGhi(async () => {
+    const daCap = await prisma.taskNgay.updateMany({
+      where: { id, lichTrinhNgayId },
+      data: daKiemTra.data,
+    });
+    if (daCap.count === 0) {
+      return thatBai("KHONG_TIM_THAY_TASK", "Task này không còn tồn tại.");
+    }
+
+    // `updateMany` không trả hàng đã cập nhật; đọc lại đúng `daXong` hiện tại
+    // (action này không đổi trường đó) để trả về đủ hình dạng `TaskNgay`.
+    // Vẫn ownership-scoped bằng cả `id` lẫn `lichTrinhNgayId` — cùng bất biến
+    // như câu `updateMany` ở trên, không chỉ dựa vào `id` một mình.
+    const task = await prisma.taskNgay.findFirst({
+      where: { id, lichTrinhNgayId },
+    });
+    if (!task) {
+      return thatBai("KHONG_TIM_THAY_TASK", "Task này không còn tồn tại.");
+    }
+
+    lamMoiManHinh();
+    return thanhCong({
+      id,
+      ten: daKiemTra.data.ten,
+      thoiHan: daKiemTra.data.thoiHan,
+      mucUuTien: daKiemTra.data.mucUuTien,
+      daXong: task.daXong,
+    });
+  });
+}
+
+/** Xoá một Task khỏi Lịch trình ngày. Không có bước xác nhận (EXPERIENCE.md). */
+export async function xoaTaskNgay(
+  id: number,
+  lichTrinhNgayId: number,
+): Promise<KetQua<{ id: number }>> {
+  if (!Number.isInteger(id) || !Number.isInteger(lichTrinhNgayId)) {
+    return thatBai("ID_KHONG_HOP_LE", "Task không hợp lệ.");
+  }
+
+  return boiCanhGhi(async () => {
+    const daXoa = await prisma.taskNgay.deleteMany({
+      where: { id, lichTrinhNgayId },
+    });
+    if (daXoa.count === 0) {
+      return thatBai("KHONG_TIM_THAY_TASK", "Task này không còn tồn tại.");
+    }
+
+    lamMoiManHinh();
+    return thanhCong({ id });
+  });
+}
+
+/**
+ * Đảo Đã xong/Chưa xong của một Task trong Lịch trình ngày — một-cú-bấm,
+ * không xác nhận (FR-3, EXPERIENCE.md's Interaction Primitives).
+ *
+ * `updateMany` với `where: { id, lichTrinhNgayId }` là lệnh ghi duy nhất ở
+ * đây: ownership-scoped ngay trong câu truy vấn, atomic, không cần đọc trước.
+ */
+export async function danhDauTask(
+  id: number,
+  lichTrinhNgayId: number,
+  daXong: boolean,
+): Promise<KetQua<{ id: number; daXong: boolean }>> {
+  if (!Number.isInteger(id) || !Number.isInteger(lichTrinhNgayId)) {
+    return thatBai("ID_KHONG_HOP_LE", "Task không hợp lệ.");
+  }
+  if (typeof daXong !== "boolean") {
+    return thatBai("DU_LIEU_KHONG_HOP_LE", "Trạng thái Đã xong không hợp lệ.");
+  }
+
+  return boiCanhGhi(async () => {
+    const daCap = await prisma.taskNgay.updateMany({
+      where: { id, lichTrinhNgayId },
+      data: { daXong },
+    });
+    if (daCap.count === 0) {
+      return thatBai("KHONG_TIM_THAY_TASK", "Task này không còn tồn tại.");
+    }
+
+    lamMoiManHinh();
+    return thanhCong({ id, daXong });
   });
 }

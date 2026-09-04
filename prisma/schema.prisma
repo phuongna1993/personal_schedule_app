@@ -52,3 +52,37 @@ model Task {
 
   @@index([mauLichTrinhId])
 }
+
+/// Lịch trình ngày (Daily Schedule) — một hàng LỊCH SỬ cho mỗi ngày lịch,
+/// theo AD-2 tách vật lý hoàn toàn khỏi `MauLichTrinh`/`Task`: không share
+/// hàng/FK giữa hai bộ model, chỉ copy giá trị field tại thời điểm khởi tạo.
+/// Được tạo lười qua đúng một Server Action `taoLichTrinhNgayTuMau()` (AD-3
+/// ngoại lệ 2) — không bao giờ UPDATE một hàng đã tồn tại từ ngày đã qua.
+model LichTrinhNgay {
+  id Int @id @default(autoincrement())
+
+  /// Mốc 00:00 giờ Asia/Ho_Chi_Minh của ngày này — khoá unique, tính DUY NHẤT
+  /// qua `layMocNgayVN()` ở `lib/ngayVn.ts`, không bao giờ dùng giờ UTC làm mốc.
+  ngay DateTime @unique
+
+  tasks TaskNgay[]
+}
+
+/// Task của một `LichTrinhNgay` cụ thể — copy giá trị field từ `Task` của
+/// Mẫu tại thời điểm khởi tạo ngày đó (AD-2). Sửa/thêm/xoá ở đây KHÔNG BAO GIỜ
+/// viết lên `MauLichTrinh`/`Task`.
+model TaskNgay {
+  id Int @id @default(autoincrement())
+
+  ten       String
+  thoiHan   String
+  mucUuTien String
+
+  /// Đã xong / Chưa xong — check-off một-cú-bấm, không có bước xác nhận (FR-3).
+  daXong Boolean @default(false)
+
+  lichTrinhNgayId Int
+  lichTrinhNgay   LichTrinhNgay @relation(fields: [lichTrinhNgayId], references: [id], onDelete: Cascade)
+
+  @@index([lichTrinhNgayId])
+}

@@ -25,3 +25,7 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/1-mau-lich-trinh.md`
   summary: `package.json`'s `allowScripts` block references `@lavamoat/allow-scripts`, which is absent from devDependencies, and pins an exact `better-sqlite3` version narrower than the declared `^` range — will silently stop matching on the next minor bump.
   evidence: Blind Hunter finding; doesn't break the current install, but is a latent maintenance trap worth a cleanup pass.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/2-lich-trinh-ngay.md`
+  summary: `LichTrinhNgayView`'s check-off/edit/delete buttons all share one global `useTransition`, so any single row's pending action disables every other row's checkbox and buttons until it resolves.
+  evidence: Blind Hunter finding; identical pre-existing pattern in Story 1's `TrinhSoanThaoMau`, so it's a cross-story UX rough edge rather than something unique to this story — better fixed once, across both screens, than twice.
