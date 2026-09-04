@@ -593,6 +593,143 @@ select {
   font-size: 12.5px;
 }
 
+/* ------------------------------------------------ chi tiêu quick-add --- */
+/* Ported from mockups/quick-transaction.html:124-147 (Story 3), remapped
+   onto this file's CSS variables. Rendered inline as a `.card` per the
+   story's Design Notes — no dashboard exists yet to host it as a
+   `.scrim`/`.sheet-modal` overlay. */
+
+.field-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 14px 0 6px;
+}
+
+.field-label:first-of-type {
+  margin-top: 0;
+}
+
+.amount-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  padding: 10px 14px;
+}
+
+.amount-field input {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  width: 100%;
+  font-family: inherit;
+  text-align: right;
+}
+
+.amount-field input:focus-visible {
+  outline: none;
+}
+
+.amount-field .cur {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-tertiary);
+}
+
+.cat-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cat-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-hairline);
+  color: var(--ink-secondary);
+  background: var(--surface-raised);
+}
+
+.cat-chip.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.date-field input {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.date-field .ic {
+  color: var(--ink-tertiary);
+}
+
+.date-field .today-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-full);
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.note-field {
+  width: 100%;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  padding: 9px 14px;
+  font-size: 12.5px;
+  color: var(--ink-primary);
+  font-family: inherit;
+}
+
+.note-field::placeholder {
+  color: var(--ink-tertiary);
+}
+
+/* Log tháng này — hàng Giao dịch dùng lại `.task-row`, thêm hai biến thể bề
+   rộng cho cột ngày/số tiền (reuse trước khi port class mới, Boundaries). */
+.ttime.wide {
+  width: 82px;
+}
+
+.tname.amt {
+  flex: 0 0 128px;
+  text-align: right;
+  font-weight: 700;
+}
+
 .field-error {
   font-size: 11.5px;
   font-weight: 600;

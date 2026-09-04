@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   formatNgayVN,
+  layMocDauThangKeTiepVN,
+  layMocDauThangVN,
   layMocNgayVN,
   thamSoNgayVN,
   themNgay,
@@ -72,6 +74,70 @@ describe("themNgay", () => {
   it("themNgay(moc, 0) trả về đúng mốc ban đầu", () => {
     const moc = new Date("2026-09-03T17:00:00.000Z");
     expect(themNgay(moc, 0).getTime()).toBe(moc.getTime());
+  });
+});
+
+/**
+ * Kỳ vọng TÍNH TAY, độc lập với hàm đang test — cùng nguyên tắc đầu file.
+ * 00:00 giờ VN của một ngày == 17:00 UTC của ngày lịch trước đó.
+ */
+describe("layMocDauThangVN", () => {
+  it("giữa tháng: quy về đúng 00:00 giờ VN của ngày 1 CÙNG tháng đó", () => {
+    // 2026-09-15T05:30:00.000Z = 15/09/2026 12:30 giờ VN.
+    const giuaThang = new Date("2026-09-15T05:30:00.000Z");
+    const ketQua = layMocDauThangVN(giuaThang);
+    // 01/09/2026 00:00 giờ VN == 2026-08-31T17:00:00.000Z.
+    expect(ketQua.getTime()).toBe(
+      new Date("2026-08-31T17:00:00.000Z").getTime(),
+    );
+  });
+
+  it("tháng 12: quy về đúng 00:00 giờ VN của ngày 1/12, KHÔNG cuộn sang năm sau", () => {
+    // 2026-12-20T10:00:00.000Z = 20/12/2026 17:00 giờ VN.
+    const thangMuoiHai = new Date("2026-12-20T10:00:00.000Z");
+    const ketQua = layMocDauThangVN(thangMuoiHai);
+    // 01/12/2026 00:00 giờ VN == 2026-11-30T17:00:00.000Z.
+    expect(ketQua.getTime()).toBe(
+      new Date("2026-11-30T17:00:00.000Z").getTime(),
+    );
+  });
+
+  it("đầu tháng (đúng mốc 00:00 VN ngày 1) trả về chính nó", () => {
+    // 01/01/2026 00:00 giờ VN == 2025-12-31T17:00:00.000Z.
+    const dauThang = new Date("2025-12-31T17:00:00.000Z");
+    expect(layMocDauThangVN(dauThang).getTime()).toBe(dauThang.getTime());
+  });
+});
+
+describe("layMocDauThangKeTiepVN", () => {
+  it("giữa tháng: quy về đúng 00:00 giờ VN của ngày 1 THÁNG SAU", () => {
+    // 2026-09-15T05:30:00.000Z = 15/09/2026 12:30 giờ VN.
+    const giuaThang = new Date("2026-09-15T05:30:00.000Z");
+    const ketQua = layMocDauThangKeTiepVN(giuaThang);
+    // 01/10/2026 00:00 giờ VN == 2026-09-30T17:00:00.000Z.
+    expect(ketQua.getTime()).toBe(
+      new Date("2026-09-30T17:00:00.000Z").getTime(),
+    );
+  });
+
+  it("tháng 12: cuộn ĐÚNG sang 01/01 năm SAU (không phải 01/13 hay giữ nguyên năm)", () => {
+    // 2026-12-20T10:00:00.000Z = 20/12/2026 17:00 giờ VN.
+    const thangMuoiHai = new Date("2026-12-20T10:00:00.000Z");
+    const ketQua = layMocDauThangKeTiepVN(thangMuoiHai);
+    // 01/01/2027 00:00 giờ VN == 2026-12-31T17:00:00.000Z.
+    expect(ketQua.getTime()).toBe(
+      new Date("2026-12-31T17:00:00.000Z").getTime(),
+    );
+  });
+
+  it("cận trên loại trừ: đúng bằng layMocDauThangVN() của tháng kế tiếp, cách layMocDauThangVN() tháng này > 27 ngày", () => {
+    const thoiDiem = new Date("2026-02-10T00:00:00.000Z"); // giữa tháng 2/2026
+    const dauThang = layMocDauThangVN(thoiDiem);
+    const dauThangKeTiep = layMocDauThangKeTiepVN(thoiDiem);
+    const soNgayCachNhau =
+      (dauThangKeTiep.getTime() - dauThang.getTime()) / (24 * 60 * 60 * 1000);
+    // Tháng 2/2026 (không nhuận) có 28 ngày.
+    expect(soNgayCachNhau).toBe(28);
   });
 });
 

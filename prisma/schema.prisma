@@ -86,3 +86,48 @@ model TaskNgay {
 
   @@index([lichTrinhNgayId])
 }
+
+// ---------------------------------------------------------------------------
+// Module Chi tiêu
+// ---------------------------------------------------------------------------
+
+/// Danh mục chi tiêu (Expense Category) — nhóm phân loại các Giao dịch Chi.
+/// Story 3 chỉ hỗ trợ TẠO Danh mục (inline ngay trong luồng ghi Giao dịch);
+/// không có sửa/xoá/đổi tên Danh mục ở story này (Boundaries — Never).
+model DanhMucChiTieu {
+  id  Int    @id @default(autoincrement())
+  ten String
+
+  giaoDich GiaoDich[]
+}
+
+/// Giao dịch (Transaction) — một khoản Chi hoặc Thu.
+/// `soTien` luôn là Int dương; chiều Chi/Thu xác định bởi cột `loai` (enum),
+/// KHÔNG BAO GIỜ mã hoá bằng dấu số (Data & formats convention).
+model GiaoDich {
+  id Int @id @default(autoincrement())
+
+  /// "Chi" | "Thu". SQLite không hỗ trợ enum trong Prisma, nên lưu String và
+  /// ép ràng buộc ở tầng ứng dụng — xem `LOAI_GIAO_DICH`/`laLoaiGiaoDich()`
+  /// trong `app/chi-tieu/model.ts`.
+  loai String
+
+  /// VNĐ, số nguyên dương — không âm, không thập phân.
+  soTien Int
+
+  /// Ngày phát sinh Giao dịch — mốc 00:00 giờ Asia/Ho_Chi_Minh, tính qua
+  /// `layMocNgayVN()`/`tuThamSoNgay()` ở `lib/ngayVn.ts`, không dùng UTC.
+  ngay DateTime
+
+  /// Ghi chú tuỳ chọn.
+  ghiChu String?
+
+  /// Bắt buộc khi `loai == "Chi"`, luôn `null` khi `loai == "Thu"` — ép ở
+  /// tầng Server Action (`kiemTraGiaoDich()`, `app/chi-tieu/actions.ts`),
+  /// không chỉ dựa vào việc cột này cho phép null.
+  danhMucChiTieuId Int?
+  danhMucChiTieu   DanhMucChiTieu? @relation(fields: [danhMucChiTieuId], references: [id], onDelete: Restrict)
+
+  @@index([ngay])
+  @@index([danhMucChiTieuId])
+}

@@ -58,6 +58,26 @@ export function thamSoNgayVN(moc: Date): string {
 }
 
 /**
+ * Mốc 00:00 giờ VN của NGÀY ĐẦU THÁNG chứa `thoiDiem` — dùng làm cận dưới khi
+ * lọc dữ liệu theo "tháng hiện tại" (module Chi tiêu, CAP-4/CAP-7), cùng
+ * nguyên tắc "ranh giới ngày tính theo giờ VN" như `layMocNgayVN()`.
+ */
+export function layMocDauThangVN(thoiDiem: Date = new Date()): Date {
+  const { nam, thang } = thanhPhanVN(thoiDiem);
+  return new Date(Date.UTC(nam, thang - 1, 1) - LECH_GIO_VN);
+}
+
+/**
+ * Mốc 00:00 giờ VN của NGÀY ĐẦU THÁNG KẾ TIẾP — cận trên (exclusive) khi lọc
+ * theo tháng, tránh phải tự tính "ngày cuối tháng" (số ngày/tháng khác nhau).
+ * `Date.UTC` tự cuộn tháng 13 sang năm sau đúng ngữ nghĩa.
+ */
+export function layMocDauThangKeTiepVN(thoiDiem: Date = new Date()): Date {
+  const { nam, thang } = thanhPhanVN(thoiDiem);
+  return new Date(Date.UTC(nam, thang, 1) - LECH_GIO_VN);
+}
+
+/**
  * Parse ngược một chuỗi `yyyy-mm-dd` (query string) thành mốc ngày VN.
  * Trả `null` khi chuỗi không đúng dạng hoặc là một ngày lịch không tồn tại
  * (ví dụ "2026-02-30") — gọi nơi dùng phải tự rơi về `layMocNgayVN()`.
