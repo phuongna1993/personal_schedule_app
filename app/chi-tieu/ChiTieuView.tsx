@@ -3,14 +3,23 @@
 import { useId, useState, useTransition } from "react";
 import type { KetQua, LoiAction } from "@/lib/ketQua";
 import { formatNgayVN, layMocNgayVN, thamSoNgayVN } from "@/lib/ngayVn";
-import { suaGiaoDich, themDanhMuc, themGiaoDich, xoaGiaoDich } from "./actions";
+import {
+  datHanMucNganSach,
+  suaGiaoDich,
+  themDanhMuc,
+  themGiaoDich,
+  xoaGiaoDich,
+} from "./actions";
 import {
   LOAI_GIAO_DICH,
   NHAN_LOAI_GIAO_DICH,
+  type CanhBaoNganSach,
   type DanhMuc,
   type GiaoDich,
+  type GiaoDichDaGhi,
   type LoaiGiaoDich,
 } from "./model";
+import type { DanhMucVoiHanMuc } from "./queries";
 
 type DuLieuForm = {
   loai: LoaiGiaoDich;
@@ -59,11 +68,13 @@ export default function ChiTieuView({
   tongChi,
   tongThu,
   danhSachDanhMucBanDau,
+  danhMucVoiHanMuc,
 }: {
   giaoDich: GiaoDich[];
   tongChi: number;
   tongThu: number;
   danhSachDanhMucBanDau: DanhMuc[];
+  danhMucVoiHanMuc: DanhMucVoiHanMuc[];
 }) {
   // Danh mục vừa tạo inline, hiện ngay trong khi chờ `revalidatePath` của
   // `themDanhMuc()` kéo props mới về từ server — tránh chip vừa tạo biến mất
@@ -80,6 +91,12 @@ export default function ChiTieuView({
   const [loiHang, setLoiHang] = useState<LoiAction | null>(null);
   const [dangXoa, batDauXoa] = useTransition();
 
+  // Cảnh báo Ngân sách (CAP-6) — kết quả của LẦN LƯU Giao dịch gần nhất
+  // (`themGiaoDich`/`suaGiaoDich`'s `data.canhBaoNganSach`), hiện NGAY tại
+  // đây, không qua kênh riêng (AD-3). Lưu lần lưu kế tiếp không có cảnh báo
+  // sẽ tự xoá khối này đi — trạng thái luôn phản ánh đúng lần ghi gần nhất.
+  const [canhBao, setCanhBao] = useState<CanhBaoNganSach | null>(null);
+
   function moFormSua(id: number) {
     setLoiHang(null);
     setIdDangSua(id);
@@ -90,7 +107,15 @@ export default function ChiTieuView({
     batDauXoa(async () => {
       try {
         const ketQua = await xoaGiaoDich(id);
-        if (!ketQua.ok) setLoiHang(ketQua.error);
+        if (ketQua.ok) {
+          // `xoaGiaoDich` không trả `canhBaoNganSach` (Never — story
+          // boundary), nên một cảnh báo cũ gắn với Giao dịch vừa xoá có thể
+          // không còn đúng nữa — dọn khối cảnh báo đi thay vì để nó tồn tại
+          // sai lệch trên màn hình.
+          setCanhBao(null);
+        } else {
+          setLoiHang(ketQua.error);
+        }
       } catch (loi) {
         console.error("[chi-tieu] xoaGiaoDich thất bại:", loi);
         setLoiHang(LOI_KET_NOI);
@@ -115,7 +140,28 @@ export default function ChiTieuView({
             setDanhMucCucBo((truoc) => [...truoc, dm])
           }
           onLuu={(duLieu) => themGiaoDich(duLieu)}
+          onLuuXong={setCanhBao}
         />
+      </section>
+
+      {canhBao ? <KhoiCanhBaoNganSach canhBao={canhBao} /> : null}
+
+      <section className="card" aria-labelledby="tieu-de-han-muc">
+        <h2 id="tieu-de-han-muc">Hạn mức tháng này</h2>
+        <p className="sub">
+          Đặt/sửa hạn mức Chi theo tháng cho từng Danh mục — chỉ áp dụng cho
+          tháng hiện tại, không đổi các tháng đã qua
+        </p>
+
+        {danhMucVoiHanMuc.length === 0 ? (
+          <p className="empty-txt">
+            Chưa có Danh mục nào — thêm một Danh mục ở form phía trên trước.
+          </p>
+        ) : (
+          danhMucVoiHanMuc.map((dm) => (
+            <HangHanMuc key={dm.danhMucChiTieuId} danhMuc={dm} />
+          ))
+        )}
       </section>
 
       <section className="card" aria-labelledby="tieu-de-thang">
@@ -156,6 +202,7 @@ export default function ChiTieuView({
                   setDanhMucCucBo((truoc) => [...truoc, dm])
                 }
                 onLuu={(duLieu) => suaGiaoDich(gd.id, duLieu)}
+                onLuuXong={setCanhBao}
                 onHuy={() => setIdDangSua(null)}
                 onXong={() => setIdDangSua(null)}
               />
@@ -211,6 +258,7 @@ function FormGiaoDich({
   danhSachDanhMuc,
   onThemDanhMuc,
   onLuu,
+  onLuuXong,
   onHuy,
   onXong,
 }: {
@@ -220,9 +268,13 @@ function FormGiaoDich({
   inline?: boolean;
   danhSachDanhMuc: DanhMuc[];
   onThemDanhMuc: (danhMuc: DanhMuc) => void;
-  // Dùng thẳng `KetQua` của `lib/ketQua.ts` (AD-3) thay vì khai lại một kiểu
-  // cùng hình dạng ở đây.
-  onLuu: (duLieu: unknown) => Promise<KetQua<unknown>>;
+  // `themGiaoDich`/`suaGiaoDich` đều trả `KetQua<GiaoDichDaGhi>` (CAP-6) —
+  // dùng thẳng kiểu đó thay vì `unknown` để đọc được `data.canhBaoNganSach`.
+  onLuu: (duLieu: unknown) => Promise<KetQua<GiaoDichDaGhi>>;
+  // Gọi lại với `canhBaoNganSach` của lần lưu vừa xong (kể cả `null`, để dọn
+  // khối cảnh báo cũ đi nếu lần lưu này không còn cảnh báo) — CAP-6, hiện
+  // NGAY tại `/chi-tieu`, không qua kênh riêng (AD-3).
+  onLuuXong?: (canhBao: CanhBaoNganSach | null) => void;
   onHuy?: () => void;
   onXong?: () => void;
 }) {
@@ -269,6 +321,7 @@ function FormGiaoDich({
           danhMucChiTieuId: gia.loai === "Chi" ? gia.danhMucChiTieuId : null,
         });
         if (ketQua.ok) {
+          onLuuXong?.(ketQua.data.canhBaoNganSach);
           onXong?.();
           // Form thêm-nhanh không dismiss — reset để sẵn sàng nhập giao dịch
           // kế tiếp ngay (one-click-is-done, không cần mở lại form).
@@ -514,5 +567,137 @@ function FormGiaoDich({
         ) : null}
       </div>
     </form>
+  );
+}
+
+/**
+ * Khối cảnh báo Ngân sách (CAP-6) — `.budget-card` + `.threshold-tag` +
+ * `.alert-box`, port từ `mockups/quick-transaction.html:277-297` (Design
+ * Notes). Ngưỡng 30%/100% cố định nên hai trạng thái ("dưới ngưỡng"/"đã
+ * vượt") được SUY RA ngay ở đây từ `daChi`/`hanMuc`, không cần một field
+ * "loại cảnh báo" riêng trên `CanhBaoNganSach` (Boundaries: chỉ mang
+ * `hanMuc`/`daChi`/`phanTramConLai`).
+ *
+ * Accessibility Floor (EXPERIENCE.md): `{colors.accent}` dùng chung cho cả
+ * active lẫn cảnh báo, nên khối này luôn mang đủ icon ⚠ + nhãn chữ tường
+ * minh + số cụ thể — không bao giờ chỉ dựa vào màu.
+ */
+function KhoiCanhBaoNganSach({ canhBao }: { canhBao: CanhBaoNganSach }) {
+  const daVuot = canhBao.daChi > canhBao.hanMuc;
+  const phanTramHienThi = Math.max(canhBao.phanTramConLai, 0);
+  const phanTramThanh = Math.min(
+    100,
+    Math.round((canhBao.daChi / canhBao.hanMuc) * 100),
+  );
+
+  return (
+    <div className="budget-card" role="status">
+      <div className="row-top">
+        <div>
+          <h4>{canhBao.tenDanhMuc}</h4>
+          <p className="spent">
+            Đã chi {formatTien(canhBao.daChi)} / {formatTien(canhBao.hanMuc)}đ
+            trong tháng này
+          </p>
+        </div>
+        <div className="pct-big">
+          {phanTramHienThi}%<span className="lbl">còn lại</span>
+        </div>
+      </div>
+      <div className="bar">
+        <span style={{ width: `${phanTramThanh}%` }} />
+      </div>
+      <span className="threshold-tag">
+        <span aria-hidden="true">⚠</span>{" "}
+        {daVuot ? "Đã vượt ngân sách" : "Dưới ngưỡng cảnh báo 30%"}
+      </span>
+
+      <div className="alert-box" style={{ marginTop: "14px" }}>
+        <span className="icon" aria-hidden="true">
+          ⚠
+        </span>
+        <p className="txt">
+          {daVuot ? (
+            <>
+              <b>{canhBao.tenDanhMuc}</b> đã chi vượt hạn mức tháng này{" "}
+              <b>{formatTien(canhBao.daChi - canhBao.hanMuc)}đ</b>.
+            </>
+          ) : (
+            <>
+              Giao dịch vừa lưu đã đẩy <b>{canhBao.tenDanhMuc}</b> xuống dưới
+              ngưỡng cảnh báo cố định 30% còn lại trong tháng.
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Một hàng "Danh mục — hạn mức tháng này" — input hạn mức + nút Lưu, gọi
+ * `datHanMucNganSach()`. Luôn upsert THÁNG HIỆN TẠI ở tầng Server Action
+ * (Boundaries: never một tháng khác), input này không có trường chọn tháng.
+ */
+function HangHanMuc({ danhMuc }: { danhMuc: DanhMucVoiHanMuc }) {
+  const [gia, setGia] = useState(danhMuc.hanMuc ?? 0);
+  const [loi, setLoi] = useState<LoiAction | null>(null);
+  const [dangGui, batDau] = useTransition();
+  const idInput = useId();
+
+  function luu() {
+    setLoi(null);
+    batDau(async () => {
+      try {
+        const ketQua = await datHanMucNganSach(danhMuc.danhMucChiTieuId, gia);
+        if (!ketQua.ok) setLoi(ketQua.error);
+      } catch (loiGoi) {
+        console.error("[chi-tieu] datHanMucNganSach thất bại:", loiGoi);
+        setLoi(LOI_KET_NOI);
+      }
+    });
+  }
+
+  return (
+    // Fragment (không phải <div>) để `.task-row` vẫn là con trực tiếp của
+    // `<section>` — giữ đúng selector `.task-row:last-of-type` (bỏ viền dưới
+    // ở hàng cuối) hoạt động qua danh sách nhiều Danh mục.
+    <>
+      <div className="task-row">
+        <label htmlFor={idInput} className="tname">
+          {danhMuc.ten}
+        </label>
+        <div className="amount-field" style={{ flex: "0 0 160px" }}>
+          <input
+            id={idInput}
+            type="text"
+            inputMode="numeric"
+            aria-invalid={loi?.field === "hanMuc" || undefined}
+            value={gia === 0 ? "" : formatTien(gia)}
+            onChange={(e) => {
+              const chiSo = e.target.value.replace(/\D/g, "");
+              const so = chiSo.length === 0 ? 0 : Number(chiSo);
+              setGia(Number.isFinite(so) ? so : 0);
+            }}
+          />
+          <span className="cur">đ</span>
+        </div>
+        <span className="row-actions">
+          <button
+            type="button"
+            className="ghost"
+            disabled={dangGui}
+            onClick={luu}
+          >
+            Lưu
+          </button>
+        </span>
+      </div>
+      {loi ? (
+        <p className="field-error" role="alert">
+          {loi.message}
+        </p>
+      ) : null}
+    </>
   );
 }

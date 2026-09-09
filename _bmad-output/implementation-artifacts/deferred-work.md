@@ -65,3 +65,47 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/3-ghi-chi-tieu-ngan-sach.md`
   summary: If a user selects an existing category chip while a just-triggered inline "tạo danh mục mới" create request is still pending, the resolving create's callback can overwrite the manual selection once it completes.
   evidence: Edge Case Hunter finding; narrow timing window, single-user app, low practical likelihood and low consequence (user notices wrong category selected, can correct it).
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: Full Ngân sách overview UI (đã chi + % còn lại per Danh mục, at a glance across every category at once) — narrowed out of Story 4, which now covers CAP-6 minimally (set/edit current month's hạn mức per category + inline threshold alert on the transaction form only, no persistent multi-category overview).
+  evidence: Combined CAP-5+CAP-6 draft measured ~2518 tokens (cl100k), well over the 900-1600 target. The deferred overview is functionally the same surface CAP-7/Story 5 ("Xem báo cáo chi tiêu theo tháng") already covers, so building it there avoids duplicating the same per-category spend breakdown twice. Human chose Split [S] over accepting the oversized spec.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: The budget alert's copy hardcodes "trong tháng này" / "tháng hiện tại", but `tinhCanhBaoNganSach()` actually scopes to the month of the saved transaction's own `ngay` — a backdated or postdated Chi can trigger an alert labeled "this month" for a month that isn't the real calendar-current one, with no month field on `CanhBaoNganSach` to disambiguate.
+  evidence: Blind Hunter finding. Same class of gap already accepted for Story 3 ("editing/adding a Giao dịch with a ngay outside the current month silently disappears from the list, accepted as a foreseeable consequence of deferring CAP-7") — fits naturally alongside that fix once Story 5's past-month browsing exists.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: `HangHanMuc`'s hạn mức input seeds its value from props only once via `useState(danhMuc.hanMuc ?? 0)`, so it won't resync if the same category's server-side hạn mức changes elsewhere (another tab, a stale revalidate) without a full page reload.
+  evidence: Blind Hunter + Edge Case Hunter both flagged it independently. Single-user, one-machine app (AD-5) makes the multi-tab drift window narrow and low-consequence — same risk class as Story 3's inline-category-selection race already deferred.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: No way to clear/remove an already-set hạn mức once entered — `datHanMucNganSach` rejects any `hanMuc<=0`, and `HangHanMuc` only offers a "Lưu" button, never a path back to "no limit this month."
+  evidence: Blind Hunter finding. Not required by CAP-5/CAP-6's minimum scope (set/edit only); worth adding once the full Ngân sách overview (already deferred above) is built.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: `HangHanMuc` gives no success feedback after saving a hạn mức — only the error path (`loi`) renders anything; a successful "Lưu" just re-enables the button with no confirmation the value persisted.
+  evidence: Blind Hunter finding. Budget-setting isn't one of the "ba thao tác ghi nhanh hàng ngày" (EXPERIENCE.md) that mandate instant confirmation feedback, so this is a UX polish gap, not a spec violation.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: The hạn mức input in `HangHanMuc` isn't wrapped in a `<form onSubmit>` and has no Enter-key handling — the user must locate and click the small "Lưu" button, unlike the app's other forms.
+  evidence: Blind Hunter finding; minor interaction-pattern inconsistency, cheap to fix alongside a later UI-consistency pass.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: No DB-level CHECK constraint enforces `NganSach.thang` is always a first-of-month value — correctness depends entirely on every write path consistently calling `layMocDauThangVN()`.
+  evidence: Blind Hunter finding; same accepted class of gap already logged for `Task.ten`/`Task.mucUuTien` (Story 1) and `GiaoDich`'s Chi/Thu invariants (Story 3) — not reachable through any current write path since Server Actions are the only writer (AD-3).
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: The "Hạn mức tháng này" section never states which month/year it is actually editing (e.g. "Tháng 9/2026") — it only says "tháng hiện tại" in prose, ambiguous right at a month boundary.
+  evidence: Blind Hunter finding; low-cost copy polish, not blocking correctness.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: When a budget alert appears after editing a transaction row well below the fold, there's no scroll-into-view or focus management — the banner renders back up near the "Ghi giao dịch" form and the user may never notice it.
+  evidence: Blind Hunter finding; cosmetic UX gap, same severity class as other papercuts already deferred from Stories 1-3.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: `KhoiCanhBaoNganSach` renders an `<h4>` directly under the page's `<h2>` sections with no intervening `<h3>`, skipping a heading level for assistive-technology users.
+  evidence: Blind Hunter finding; same Accessibility Floor gap already deferred from Stories 1 and 3 ("better tackled as one pass across all screens once more of them exist").
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
+  summary: Editing a transaction's date to move it into a different month only recomputes/shows budget status for the destination month; the origin month's budget status (which may have just changed because the transaction left it) is never recomputed or surfaced.
+  evidence: Blind Hunter finding; same accepted risk class as the already-deferred "editing across months" Story 3 gap — alerts are ephemeral (shown only at save time), so the origin month isn't being viewed at the moment it changes.

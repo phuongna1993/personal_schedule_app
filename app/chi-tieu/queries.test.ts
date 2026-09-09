@@ -26,9 +26,8 @@ const { prismaMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
-const { layGiaoDichThangHienTai, layDanhSachDanhMuc } = await import(
-  "./queries"
-);
+const { layGiaoDichThangHienTai, layDanhSachDanhMuc, layDanhMucVoiHanMucThangHienTai } =
+  await import("./queries");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -218,5 +217,62 @@ describe("layDanhSachDanhMuc", () => {
       { id: 2, ten: "Ăn uống" },
       { id: 1, ten: "Đi lại" },
     ]);
+  });
+});
+
+/**
+ * `layDanhMucVoiHanMucThangHienTai` (Story 4, CAP-5/CAP-6) — prefill "Hạn
+ * mức tháng này": lọc `NganSach` đúng THÁNG chứa `thoiDiem`, `hanMuc: null`
+ * khi Danh mục chưa có hàng `NganSach` cho đúng tháng đó.
+ */
+describe("layDanhMucVoiHanMucThangHienTai", () => {
+  it("hanMuc null khi Danh mục chưa có NganSach tháng này", async () => {
+    prismaMock.danhMucChiTieu.findMany.mockResolvedValue([
+      { id: 1, ten: "Ăn uống", nganSach: [] },
+    ]);
+
+    const ds = await layDanhMucVoiHanMucThangHienTai();
+
+    expect(ds).toEqual([{ danhMucChiTieuId: 1, ten: "Ăn uống", hanMuc: null }]);
+  });
+
+  it("trả đúng hanMuc khi Danh mục có NganSach tháng này", async () => {
+    prismaMock.danhMucChiTieu.findMany.mockResolvedValue([
+      { id: 1, ten: "Ăn uống", nganSach: [{ hanMuc: 3_000_000 }] },
+    ]);
+
+    const ds = await layDanhMucVoiHanMucThangHienTai();
+
+    expect(ds).toEqual([
+      { danhMucChiTieuId: 1, ten: "Ăn uống", hanMuc: 3_000_000 },
+    ]);
+  });
+
+  it("lọc nganSach theo đúng ranh giới THÁNG VN chứa thoiDiem", async () => {
+    prismaMock.danhMucChiTieu.findMany.mockResolvedValue([]);
+    // 2026-08-15T10:00:00.000Z = 15/08/2026 17:00 giờ VN.
+    const thoiDiem = new Date("2026-08-15T10:00:00.000Z");
+
+    await layDanhMucVoiHanMucThangHienTai(thoiDiem);
+
+    expect(prismaMock.danhMucChiTieu.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          nganSach: {
+            // 01/08/2026 00:00 VN == 2026-07-31T17:00:00.000Z.
+            where: { thang: new Date("2026-07-31T17:00:00.000Z") },
+            select: { hanMuc: true },
+          },
+        },
+      }),
+    );
+  });
+
+  it("trả mảng rỗng khi chưa có Danh mục nào", async () => {
+    prismaMock.danhMucChiTieu.findMany.mockResolvedValue([]);
+
+    const ds = await layDanhMucVoiHanMucThangHienTai();
+
+    expect(ds).toEqual([]);
   });
 });

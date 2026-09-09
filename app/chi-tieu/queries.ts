@@ -2,6 +2,15 @@ import { prisma } from "@/lib/db";
 import { layMocDauThangKeTiepVN, layMocDauThangVN } from "@/lib/ngayVn";
 import { laLoaiGiaoDich, type DanhMuc, type GiaoDich } from "./model";
 
+/** Một Danh mục kèm hạn mức Ngân sách tháng hiện tại — dùng để prefill ô nhập
+ * "Hạn mức tháng này". `hanMuc: null` khi Danh mục chưa có `NganSach` tháng
+ * này (Boundaries: "không có hạn mức mặc định/kế thừa"). */
+export type DanhMucVoiHanMuc = {
+  danhMucChiTieuId: number;
+  ten: string;
+  hanMuc: number | null;
+};
+
 /**
  * AD-1 — Module Chi tiêu sở hữu độc quyền các model `DanhMucChiTieu` /
  * `GiaoDich`, kể cả đường ĐỌC. Mọi module khác (kể cả tầng tổng hợp
@@ -77,4 +86,29 @@ export async function layDanhSachDanhMuc(): Promise<DanhMuc[]> {
   });
 
   return rows.map((row) => ({ id: row.id, ten: row.ten }));
+}
+
+/**
+ * Đọc toàn bộ Danh mục kèm hạn mức Ngân sách của THÁNG chứa `thoiDiem` (mặc
+ * định: tháng hiện tại, giờ VN) — dùng để prefill ô "Hạn mức tháng này" trên
+ * `/chi-tieu` (Code Map). `hanMuc` là `null` khi Danh mục chưa có hàng
+ * `NganSach` cho đúng tháng này (không suy ra từ tháng khác).
+ */
+export async function layDanhMucVoiHanMucThangHienTai(
+  thoiDiem: Date = new Date(),
+): Promise<DanhMucVoiHanMuc[]> {
+  const thang = layMocDauThangVN(thoiDiem);
+
+  const rows = await prisma.danhMucChiTieu.findMany({
+    orderBy: [{ ten: "asc" }, { id: "asc" }],
+    include: {
+      nganSach: { where: { thang }, select: { hanMuc: true } },
+    },
+  });
+
+  return rows.map((row) => ({
+    danhMucChiTieuId: row.id,
+    ten: row.ten,
+    hanMuc: row.nganSach[0]?.hanMuc ?? null,
+  }));
 }

@@ -3,12 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { type KetQua, thanhCong, thatBai } from "@/lib/ketQua";
-import { tuThamSoNgay } from "@/lib/ngayVn";
 import {
+  layMocDauThangKeTiepVN,
+  layMocDauThangVN,
+  tuThamSoNgay,
+} from "@/lib/ngayVn";
+import {
+  type CanhBaoNganSach,
   type DanhMuc,
   type GiaoDich,
+  type GiaoDichDaGhi,
   laLoaiGiaoDich,
   type LoaiGiaoDich,
+  type NganSach,
 } from "./model";
 
 /**
@@ -197,8 +204,72 @@ async function xacNhanDanhMucTonTai(id: number): Promise<KetQua<true>> {
   return thanhCong(true as const);
 }
 
+/**
+ * Ngưỡng cảnh báo Ngân sách — cố định 30% còn lại (SPEC.md CAP-6), không
+ * cấu hình theo Danh mục. So sánh bằng số nguyên (`daChi * 10 >= hanMuc * 7`)
+ * để tránh sai số dấu phẩy động khi so `daChi / hanMuc >= 0.7`.
+ */
+const TU_SO_NGUONG_CANH_BAO = 7;
+const MAU_SO_NGUONG_CANH_BAO = 10;
+
+/**
+ * Tính cảnh báo Ngân sách (CAP-6) cho một Danh mục tại THÁNG chứa `thoiDiem`
+ * (tính qua `layMocDauThangVN()`/`layMocDauThangKeTiepVN()`, cùng một cặp hàm
+ * mốc tháng dùng xuyên suốt module — Boundaries: "reuse cho mọi phép tính
+ * tháng"). Chỉ gọi khi Giao dịch vừa ghi là `loai === "Chi"` (Never: không có
+ * cảnh báo cho Thu).
+ *
+ * Trả `null` khi: chưa có hàng `NganSach` cho tháng đó (Boundaries: "không có
+ * hạn mức mặc định/kế thừa"), hoặc tổng đã Chi trong tháng chưa chạm 70% hạn
+ * mức (dưới ngưỡng cảnh báo).
+ */
+async function tinhCanhBaoNganSach(
+  danhMucChiTieuId: number,
+  thoiDiem: Date,
+): Promise<CanhBaoNganSach | null> {
+  const thang = layMocDauThangVN(thoiDiem);
+
+  const nganSach = await prisma.nganSach.findUnique({
+    where: { danhMucChiTieuId_thang: { danhMucChiTieuId, thang } },
+  });
+  if (!nganSach) return null;
+
+  const dauThangKeTiep = layMocDauThangKeTiepVN(thoiDiem);
+  const tong = await prisma.giaoDich.aggregate({
+    where: {
+      danhMucChiTieuId,
+      loai: "Chi",
+      ngay: { gte: thang, lt: dauThangKeTiep },
+    },
+    _sum: { soTien: true },
+  });
+  const daChi = tong._sum.soTien ?? 0;
+
+  // Dưới ngưỡng: daChi/hanMuc < 70% -> không cảnh báo.
+  if (daChi * MAU_SO_NGUONG_CANH_BAO < nganSach.hanMuc * TU_SO_NGUONG_CANH_BAO) {
+    return null;
+  }
+
+  const danhMuc = await prisma.danhMucChiTieu.findUnique({
+    where: { id: danhMucChiTieuId },
+    select: { ten: true },
+  });
+
+  return {
+    danhMucChiTieuId,
+    tenDanhMuc: danhMuc?.ten ?? "",
+    hanMuc: nganSach.hanMuc,
+    daChi,
+    phanTramConLai: Math.floor(
+      ((nganSach.hanMuc - daChi) / nganSach.hanMuc) * 100,
+    ),
+  };
+}
+
 /** Thêm một Giao dịch mới (Chi hoặc Thu). */
-export async function themGiaoDich(duLieu: unknown): Promise<KetQua<GiaoDich>> {
+export async function themGiaoDich(
+  duLieu: unknown,
+): Promise<KetQua<GiaoDichDaGhi>> {
   const daKiemTra = kiemTraGiaoDich(duLieu);
   if (!daKiemTra.ok) return daKiemTra;
 
@@ -215,8 +286,16 @@ export async function themGiaoDich(duLieu: unknown): Promise<KetQua<GiaoDich>> {
       include: { danhMucChiTieu: true },
     });
 
+    const canhBaoNganSach =
+      daKiemTra.data.loai === "Chi" && daKiemTra.data.danhMucChiTieuId !== null
+        ? await tinhCanhBaoNganSach(
+            daKiemTra.data.danhMucChiTieuId,
+            daKiemTra.data.ngay,
+          )
+        : null;
+
     lamMoiManHinh();
-    return thanhCong(dinhDangGiaoDich(row));
+    return thanhCong({ ...dinhDangGiaoDich(row), canhBaoNganSach });
   });
 }
 
@@ -250,7 +329,7 @@ function laLoiKhongTimThayHang(loi: unknown): boolean {
 export async function suaGiaoDich(
   id: number,
   duLieu: unknown,
-): Promise<KetQua<GiaoDich>> {
+): Promise<KetQua<GiaoDichDaGhi>> {
   if (!Number.isInteger(id)) {
     return thatBai("ID_KHONG_HOP_LE", "Giao dịch không hợp lệ.");
   }
@@ -285,8 +364,16 @@ export async function suaGiaoDich(
       throw loi;
     }
 
+    const canhBaoNganSach =
+      daKiemTra.data.loai === "Chi" && daKiemTra.data.danhMucChiTieuId !== null
+        ? await tinhCanhBaoNganSach(
+            daKiemTra.data.danhMucChiTieuId,
+            daKiemTra.data.ngay,
+          )
+        : null;
+
     lamMoiManHinh();
-    return thanhCong(dinhDangGiaoDich(row));
+    return thanhCong({ ...dinhDangGiaoDich(row), canhBaoNganSach });
   });
 }
 
@@ -344,5 +431,82 @@ export async function themDanhMuc(duLieu: unknown): Promise<KetQua<DanhMuc>> {
 
     lamMoiManHinh();
     return thanhCong({ id: danhMuc.id, ten: danhMuc.ten });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Ngân sách (Story 4, CAP-5/CAP-6) — AD-2: "config hiện hành" theo tháng.
+// ---------------------------------------------------------------------------
+
+/** Kiểm tra `hanMuc` — cùng luật số nguyên dương với `soTien` (mirror
+ * phần kiểm tra `soTien` trong `kiemTraGiaoDich()` ở trên). */
+function kiemTraHanMuc(hanMuc: unknown): KetQua<number> {
+  if (
+    !Number.isInteger(hanMuc) ||
+    (hanMuc as number) <= 0 ||
+    (hanMuc as number) > SO_TIEN_TOI_DA
+  ) {
+    return thatBai(
+      "HAN_MUC_KHONG_HOP_LE",
+      "Hạn mức phải là một số nguyên dương, tối đa 2.147.483.647đ.",
+      "hanMuc",
+    );
+  }
+  return thanhCong(hanMuc as number);
+}
+
+/**
+ * Đặt/sửa hạn mức Ngân sách của Danh mục cho THÁNG HIỆN TẠI (giờ VN) — LUÔN
+ * `upsert` trên khoá `(danhMucChiTieuId, thang)` với `thang` ép cứng về
+ * `layMocDauThangVN()` tại thời điểm gọi, không bao giờ nhận `thang` từ
+ * client (Boundaries: "never a past row"; AD-2's forward-only edit).
+ *
+ * Cùng lý do `taoLichTrinhNgayTuMau()` dùng `upsert` thay vì
+ * `findUnique` + `create`/`update` tách rời (`app/lich-trinh/actions.ts:236-
+ * 251`): `upsert` trên khoá unique là một lệnh nguyên tử, tránh race giữa
+ * hai request sửa hạn mức gần như đồng thời.
+ */
+export async function datHanMucNganSach(
+  danhMucChiTieuId: unknown,
+  hanMuc: unknown,
+): Promise<KetQua<NganSach>> {
+  if (!Number.isInteger(danhMucChiTieuId) || (danhMucChiTieuId as number) <= 0) {
+    return thatBai(
+      "DANH_MUC_KHONG_HOP_LE",
+      "Danh mục không hợp lệ.",
+      "danhMucChiTieuId",
+    );
+  }
+
+  const daKiemTraHanMuc = kiemTraHanMuc(hanMuc);
+  if (!daKiemTraHanMuc.ok) return daKiemTraHanMuc;
+
+  return boiCanhGhi(async () => {
+    const xacNhan = await xacNhanDanhMucTonTai(danhMucChiTieuId as number);
+    if (!xacNhan.ok) return xacNhan;
+
+    const thang = layMocDauThangVN();
+    const row = await prisma.nganSach.upsert({
+      where: {
+        danhMucChiTieuId_thang: {
+          danhMucChiTieuId: danhMucChiTieuId as number,
+          thang,
+        },
+      },
+      create: {
+        danhMucChiTieuId: danhMucChiTieuId as number,
+        thang,
+        hanMuc: daKiemTraHanMuc.data,
+      },
+      update: { hanMuc: daKiemTraHanMuc.data },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({
+      id: row.id,
+      danhMucChiTieuId: row.danhMucChiTieuId,
+      thang: row.thang,
+      hanMuc: row.hanMuc,
+    });
   });
 }

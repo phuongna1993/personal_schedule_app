@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import NutDoiTheme from "@/app/NutDoiTheme";
 import ChiTieuView from "./ChiTieuView";
-import { layDanhSachDanhMuc, layGiaoDichThangHienTai } from "./queries";
+import {
+  layDanhMucVoiHanMucThangHienTai,
+  layDanhSachDanhMuc,
+  layGiaoDichThangHienTai,
+} from "./queries";
 
 export const metadata: Metadata = {
   title: "Chi tiêu",
@@ -23,9 +27,10 @@ export const dynamic = "force-dynamic";
  * giao phần tương tác cho một Client Component gọi Server Actions (AD-3).
  */
 export default async function TrangChiTieu() {
-  const [duLieuThang, danhSachDanhMuc] = await Promise.all([
+  const [duLieuThang, danhSachDanhMuc, danhMucVoiHanMuc] = await Promise.all([
     layGiaoDichThangHienTai(),
     layDanhSachDanhMuc(),
+    layDanhMucVoiHanMucThangHienTai(),
   ]);
 
   return (
@@ -47,6 +52,7 @@ export default async function TrangChiTieu() {
         tongChi={duLieuThang.tongChi}
         tongThu={duLieuThang.tongThu}
         danhSachDanhMucBanDau={danhSachDanhMuc}
+        danhMucVoiHanMuc={danhMucVoiHanMuc}
       />
     </main>
   );

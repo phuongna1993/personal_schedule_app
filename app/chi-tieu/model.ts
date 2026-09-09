@@ -46,3 +46,41 @@ export type GiaoDich = {
    */
   tenDanhMuc: string | null;
 };
+
+/** Một hàng Ngân sách (hạn mức Chi theo tháng của một Danh mục). */
+export type NganSach = {
+  id: number;
+  danhMucChiTieuId: number;
+  /** Mốc đầu tháng VN (`layMocDauThangVN()`, `lib/ngayVn.ts`). */
+  thang: Date;
+  /** VNĐ, số nguyên dương. */
+  hanMuc: number;
+};
+
+/**
+ * Cảnh báo ngưỡng Ngân sách (CAP-6) — trả kèm trong response của
+ * `themGiaoDich`/`suaGiaoDich` ở `data.canhBaoNganSach` (AD-3's State &
+ * cross-cutting convention), KHÔNG bao giờ qua kênh riêng.
+ *
+ * Chỉ mang giá trị của đúng Danh mục vừa kích hoạt cảnh báo — ngưỡng 30%/100%
+ * cố định (không tuỳ chỉnh) nên UI tự suy ra hai trạng thái "dưới ngưỡng" hay
+ * "đã vượt" từ `daChi`/`hanMuc`, không cần một field "loại cảnh báo" riêng.
+ */
+export type CanhBaoNganSach = {
+  danhMucChiTieuId: number;
+  tenDanhMuc: string;
+  /** VNĐ, hạn mức tháng hiện tại của Danh mục này. */
+  hanMuc: number;
+  /** VNĐ, tổng đã Chi trong tháng hiện tại của Danh mục này (đã tính cả Giao
+   * dịch vừa lưu). */
+  daChi: number;
+  /** Phần trăm CÒN LẠI của hạn mức, làm tròn XUỐNG — có thể âm khi đã chi
+   * vượt hạn mức (ví dụ `daChi` = 120% `hanMuc` -> `-20`). */
+  phanTramConLai: number;
+};
+
+/** Một Giao dịch vừa ghi, kèm cảnh báo Ngân sách nếu có (CAP-6). */
+export type GiaoDichDaGhi = GiaoDich & {
+  /** `null` khi là Thu, chưa có `NganSach` tháng này, hoặc chưa chạm ngưỡng. */
+  canhBaoNganSach: CanhBaoNganSach | null;
+};

@@ -99,6 +99,7 @@ model DanhMucChiTieu {
   ten String
 
   giaoDich GiaoDich[]
+  nganSach NganSach[]
 }
 
 /// Giao dịch (Transaction) — một khoản Chi hoặc Thu.
@@ -130,4 +131,26 @@ model GiaoDich {
 
   @@index([ngay])
   @@index([danhMucChiTieuId])
+}
+
+/// Ngân sách (Budget) — hạn mức Chi theo tháng cho một Danh mục.
+/// "config hiện hành" theo AD-2: một hàng LUÔN gắn với đúng một tháng
+/// (`danhMucChiTieuId`, `thang`) — set/sửa CHỈ upsert hàng của THÁNG HIỆN
+/// TẠI (giờ VN), không bao giờ UPDATE hàng của một tháng đã qua. Mirror
+/// `LichTrinhNgay`'s day-keyed upsert (`app/lich-trinh/actions.ts:236-251`).
+model NganSach {
+  id Int @id @default(autoincrement())
+
+  /// Mốc 00:00 giờ Asia/Ho_Chi_Minh của NGÀY ĐẦU THÁNG này — tính DUY NHẤT
+  /// qua `layMocDauThangVN()` ở `lib/ngayVn.ts`, không dùng UTC làm mốc.
+  thang DateTime
+
+  /// VNĐ, số nguyên dương — cùng biên với `GiaoDich.soTien` (`SO_TIEN_TOI_DA`,
+  /// `app/chi-tieu/actions.ts`).
+  hanMuc Int
+
+  danhMucChiTieuId Int
+  danhMucChiTieu   DanhMucChiTieu @relation(fields: [danhMucChiTieuId], references: [id], onDelete: Restrict)
+
+  @@unique([danhMucChiTieuId, thang])
 }
