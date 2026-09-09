@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import type { KetQua, LoiAction } from "@/lib/ketQua";
 import { formatNgayVN, layMocNgayVN, thamSoNgayVN } from "@/lib/ngayVn";
@@ -19,7 +20,7 @@ import {
   type GiaoDichDaGhi,
   type LoaiGiaoDich,
 } from "./model";
-import type { DanhMucVoiHanMuc } from "./queries";
+import type { BaoCaoThang, ChiTietDanhMucBaoCao, DanhMucVoiHanMuc } from "./queries";
 
 type DuLieuForm = {
   loai: LoaiGiaoDich;
@@ -69,12 +70,22 @@ export default function ChiTieuView({
   tongThu,
   danhSachDanhMucBanDau,
   danhMucVoiHanMuc,
+  baoCaoThang,
+  nhanThang,
+  hrefThangTruoc,
+  hrefThangSau,
 }: {
   giaoDich: GiaoDich[];
   tongChi: number;
   tongThu: number;
   danhSachDanhMucBanDau: DanhMuc[];
   danhMucVoiHanMuc: DanhMucVoiHanMuc[];
+  /** Báo cáo (CAP-7) của tháng đang xem qua `?thang=` — độc lập với `tongChi`/
+   * `tongThu`/`giaoDich` ở trên (luôn là tháng hiện tại, xem `page.tsx`). */
+  baoCaoThang: BaoCaoThang;
+  nhanThang: string;
+  hrefThangTruoc: string | null;
+  hrefThangSau: string | null;
 }) {
   // Danh mục vừa tạo inline, hiện ngay trong khi chờ `revalidatePath` của
   // `themDanhMuc()` kéo props mới về từ server — tránh chip vừa tạo biến mất
@@ -244,6 +255,75 @@ export default function ChiTieuView({
               </div>
             ),
           )
+        )}
+      </section>
+
+      <section className="card" aria-labelledby="tieu-de-bao-cao">
+        <h2 id="tieu-de-bao-cao">Báo cáo tháng</h2>
+
+        {/* Đặt NGAY trong section này (không phải giữa section này với "Giao
+            dịch tháng này" ở trên) để không đọc nhầm thành điều hướng cho log
+            Giao dịch — nav chỉ ảnh hưởng Báo cáo, log Giao dịch phía trên vẫn
+            luôn là tháng hiện tại (Boundaries). */}
+        <nav className="day-nav" aria-label="Điều hướng theo tháng">
+          {hrefThangTruoc ? (
+            <Link
+              className="day-nav-btn"
+              href={hrefThangTruoc}
+              aria-label="Xem tháng trước"
+              title="Xem tháng trước"
+            >
+              <span aria-hidden="true">◀</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="day-nav-btn"
+              disabled
+              aria-label="Không có tháng trước để xem"
+              title="Không có tháng trước để xem"
+            >
+              <span aria-hidden="true">◀</span>
+            </button>
+          )}
+
+          <span className="day-nav-label">{nhanThang}</span>
+
+          {hrefThangSau ? (
+            <Link
+              className="day-nav-btn"
+              href={hrefThangSau}
+              aria-label="Xem tháng sau"
+              title="Xem tháng sau"
+            >
+              <span aria-hidden="true">▶</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="day-nav-btn"
+              disabled
+              aria-label="Không có tháng sau để xem"
+              title="Không có tháng sau để xem"
+            >
+              <span aria-hidden="true">▶</span>
+            </button>
+          )}
+        </nav>
+
+        <p className="sub">
+          Tổng Chi {formatTien(baoCaoThang.tongChi)}đ · Tổng Thu{" "}
+          {formatTien(baoCaoThang.tongThu)}đ
+        </p>
+
+        {baoCaoThang.chiTietDanhMuc.length === 0 ? (
+          <p className="empty-txt">
+            Chưa có Giao dịch Chi nào theo Danh mục trong tháng này.
+          </p>
+        ) : (
+          baoCaoThang.chiTietDanhMuc.map((dm) => (
+            <HangBaoCaoDanhMuc key={dm.danhMucChiTieuId} danhMuc={dm} />
+          ))
         )}
       </section>
     </>
@@ -699,5 +779,57 @@ function HangHanMuc({ danhMuc }: { danhMuc: DanhMucVoiHanMuc }) {
         </p>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Một dòng chi tiết Danh mục trong "Báo cáo tháng" (CAP-7) — đọc-only, không
+ * có input/nút Lưu nào (khác `HangHanMuc`). Khi Danh mục có `NganSach` cho
+ * đúng tháng đang xem, tái dùng nguyên style `.budget-card`/`.pct-big`/`.bar`
+ * của Story 4's khối cảnh báo; không có thì chỉ hiện một `.task-row` với số
+ * đã chi (Code Map: "hạn mức/% khi có").
+ */
+function HangBaoCaoDanhMuc({ danhMuc }: { danhMuc: ChiTietDanhMucBaoCao }) {
+  if (danhMuc.hanMuc === null) {
+    return (
+      <div className="task-row">
+        <span className="tname">{danhMuc.ten}</span>
+        <span className="tname amt">-{formatTien(danhMuc.daChi)}đ</span>
+      </div>
+    );
+  }
+
+  // Có thể âm khi đã chi vượt hạn mức (ví dụ daChi = 120% hanMuc -> -20) —
+  // cùng quy ước `CanhBaoNganSach.phanTramConLai`, hiển thị nguyên giá trị
+  // (không clamp) vì đây là báo cáo đọc lại, không phải cảnh báo tức thời.
+  // `Math.floor` (làm tròn XUỐNG), giống hệt công thức `tinhCanhBaoNganSach()`
+  // (`app/chi-tieu/actions.ts`) — dùng `Math.round` ở đây sẽ cho ra % khác
+  // với cảnh báo CAP-6 của cùng Danh mục/tháng (ví dụ còn đúng 33.51%: cảnh
+  // báo hiện 33%, còn `Math.round` sẽ hiện 34%).
+  const phanTramConLai = Math.floor(
+    ((danhMuc.hanMuc - danhMuc.daChi) / danhMuc.hanMuc) * 100,
+  );
+  const phanTramThanh = Math.min(
+    100,
+    Math.round((danhMuc.daChi / danhMuc.hanMuc) * 100),
+  );
+
+  return (
+    <div className="budget-card">
+      <div className="row-top">
+        <div>
+          <h4>{danhMuc.ten}</h4>
+          <p className="spent">
+            Đã chi {formatTien(danhMuc.daChi)} / {formatTien(danhMuc.hanMuc)}đ
+          </p>
+        </div>
+        <div className="pct-big">
+          {phanTramConLai}%<span className="lbl">còn lại</span>
+        </div>
+      </div>
+      <div className="bar">
+        <span style={{ width: `${phanTramThanh}%` }} />
+      </div>
+    </div>
   );
 }

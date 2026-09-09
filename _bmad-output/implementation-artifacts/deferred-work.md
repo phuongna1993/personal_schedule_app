@@ -109,3 +109,23 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/4-canh-bao-ngan-sach-30.md`
   summary: Editing a transaction's date to move it into a different month only recomputes/shows budget status for the destination month; the origin month's budget status (which may have just changed because the transaction left it) is never recomputed or surfaced.
   evidence: Blind Hunter finding; same accepted risk class as the already-deferred "editing across months" Story 3 gap — alerts are ephemeral (shown only at save time), so the origin month isn't being viewed at the moment it changes.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
+  summary: On the default (current-month, no `?thang=`) view of `/chi-tieu`, `layGiaoDichThangHienTai()` and `layBaoCaoThang()` both independently query the exact same month's `GiaoDich`, computing the same `tongChi`/`tongThu` twice via two separate DB round-trips instead of reusing one result when `laThangHienTai` is true.
+  evidence: Blind Hunter finding; negligible cost at this app's scale (SQLite, single user, one month of rows), but a real avoidable duplicate query on the most common page load.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
+  summary: `layBaoCaoThang`'s `chiTietDanhMuc` doc comment claims "cùng quy ước `layDanhSachDanhMuc()`" (same sort convention), but `layDanhSachDanhMuc()` sorts via DB collation (`orderBy: {ten:"asc"}`) while `layBaoCaoThang` sorts in JS with `localeCompare()` (no `"vi"` locale argument) — the two can order Vietnamese diacritics differently, and the JS sort's exact result depends on the Node runtime's ICU build.
+  evidence: Blind Hunter finding; cosmetic ordering discrepancy between two lists on the same page, low practical likelihood of a visible mismatch for this app's small category counts.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
+  summary: `/chi-tieu`'s page subtitle text ("Ghi nhanh một Giao dịch Chi/Thu · xem lại và sửa log tháng này") wasn't updated to mention the new "Báo cáo tháng" capability, even though the surrounding JSDoc comment above the component was.
+  evidence: Blind Hunter finding; copy-only gap, doesn't affect functionality.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
+  summary: On the default (current-month) view, the new "Báo cáo tháng" card shows `tongChi`/`tongThu` numerically identical to the "Giao dịch tháng này" summary rendered just above it, with nothing in the UI explaining why the same two totals appear twice on one screen.
+  evidence: Blind Hunter finding; same root duplication as the query-level gap above, but a UX-clarity concern rather than a performance one — worth a copy/layout pass once the report section has been used for a while.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
+  summary: The report's empty-state message ("Chưa có Giao dịch Chi nào theo Danh mục trong tháng này") is shown for at least three different underlying situations (truly no transactions, a Thu-only month, or a Chi-only-but-uncategorized month) without distinguishing them, even though `tongChi`/`tongThu` are available in the same component to disambiguate.
+  evidence: Blind Hunter finding; minor UX polish, not blocking correctness.

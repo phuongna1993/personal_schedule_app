@@ -97,3 +97,35 @@ export function tuThamSoNgay(gia: string): Date | null {
 
   return moc;
 }
+
+/** Dạng `yyyy-mm` dùng cho query string điều hướng tháng (`?thang=...`,
+ * CAP-7). */
+export function thamSoThangVN(moc: Date): string {
+  const { nam, thang } = thanhPhanVN(moc);
+  return `${nam}-${padSo2(thang)}`;
+}
+
+/**
+ * Parse ngược một chuỗi `yyyy-mm` (query string) thành mốc ĐẦU THÁNG VN
+ * (`layMocDauThangVN()` của nó) — cùng nguyên tắc round-trip-kiểm-tra với
+ * `tuThamSoNgay()`. Trả `null` khi chuỗi không đúng dạng hoặc tháng ngoài
+ * 01-12 (ví dụ "2026-13", JS Date sẽ tự cuộn sang năm sau nếu không chặn).
+ */
+export function tuThamSoThang(gia: string): Date | null {
+  const khop = /^(\d{4})-(\d{2})$/.exec(gia);
+  if (!khop) return null;
+
+  const nam = Number(khop[1]);
+  const thang = Number(khop[2]);
+  const moc = layMocDauThangVN(new Date(Date.UTC(nam, thang - 1, 1) - LECH_GIO_VN));
+
+  if (thamSoThangVN(moc) !== gia) return null;
+
+  return moc;
+}
+
+/** Hiển thị UI dạng "Tháng M/yyyy" (không zero-pad tháng). */
+export function formatThangVN(moc: Date): string {
+  const { nam, thang } = thanhPhanVN(moc);
+  return `Tháng ${thang}/${nam}`;
+}

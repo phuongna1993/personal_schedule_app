@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   formatNgayVN,
+  formatThangVN,
   layMocDauThangKeTiepVN,
   layMocDauThangVN,
   layMocNgayVN,
   thamSoNgayVN,
+  thamSoThangVN,
   themNgay,
   tuThamSoNgay,
+  tuThamSoThang,
 } from "./ngayVn";
 
 /**
@@ -192,5 +195,71 @@ describe("tuThamSoNgay", () => {
   it("chấp nhận 29/02 của năm nhuận, chặn 29/02 của năm không nhuận", () => {
     expect(tuThamSoNgay("2028-02-29")).not.toBeNull(); // 2028 là năm nhuận.
     expect(tuThamSoNgay("2026-02-29")).toBeNull(); // 2026 không phải năm nhuận.
+  });
+});
+
+describe("thamSoThangVN", () => {
+  it("hiển thị dạng yyyy-mm dùng cho query string", () => {
+    // 2026-08-31T17:00:00.000Z = 01/09/2026 00:00 giờ VN.
+    const moc = new Date("2026-08-31T17:00:00.000Z");
+    expect(thamSoThangVN(moc)).toBe("2026-09");
+  });
+
+  it("zero-pad tháng một chữ số", () => {
+    // 2026-01-31T17:00:00.000Z = 01/02/2026 00:00 giờ VN.
+    const moc = new Date("2026-01-31T17:00:00.000Z");
+    expect(thamSoThangVN(moc)).toBe("2026-02");
+  });
+});
+
+describe("tuThamSoThang", () => {
+  it("parse một chuỗi yyyy-mm hợp lệ về đúng mốc đầu tháng 00:00 giờ VN", () => {
+    const ketQua = tuThamSoThang("2026-09");
+    // 01/09/2026 00:00 giờ VN == 2026-08-31T17:00:00.000Z.
+    expect(ketQua?.getTime()).toBe(new Date("2026-08-31T17:00:00.000Z").getTime());
+  });
+
+  it("round-trip: thamSoThangVN(tuThamSoThang(s)) === s", () => {
+    expect(thamSoThangVN(tuThamSoThang("2026-12")!)).toBe("2026-12");
+  });
+
+  it("trả null cho chuỗi sai dạng hoàn toàn", () => {
+    expect(tuThamSoThang("không phải tháng")).toBeNull();
+    expect(tuThamSoThang("2026/09")).toBeNull();
+    expect(tuThamSoThang("2026-9")).toBeNull();
+    expect(tuThamSoThang("2026-09-01")).toBeNull();
+    expect(tuThamSoThang("")).toBeNull();
+  });
+
+  it("trả null cho tháng ngoài 01-12 thay vì tự cuộn sang năm sau/trước", () => {
+    // JS Date sẽ tự cuộn "2026-13" thành 01/2027 và "2026-00" thành 12/2025
+    // nếu không có bước roundtrip-kiểm-tra — phải bị chặn ở đây.
+    expect(tuThamSoThang("2026-13")).toBeNull();
+    expect(tuThamSoThang("2026-00")).toBeNull();
+  });
+
+  it("băng qua ranh giới năm: tháng 12 và tháng 01 năm sau đều parse đúng, không lẫn năm", () => {
+    const thang12 = tuThamSoThang("2026-12");
+    const thang01NamSau = tuThamSoThang("2027-01");
+    // 01/12/2026 00:00 VN == 2026-11-30T17:00:00.000Z.
+    expect(thang12?.getTime()).toBe(new Date("2026-11-30T17:00:00.000Z").getTime());
+    // 01/01/2027 00:00 VN == 2026-12-31T17:00:00.000Z.
+    expect(thang01NamSau?.getTime()).toBe(
+      new Date("2026-12-31T17:00:00.000Z").getTime(),
+    );
+  });
+});
+
+describe("formatThangVN", () => {
+  it('hiển thị dạng "Tháng M/yyyy", không zero-pad tháng', () => {
+    // 2026-08-31T17:00:00.000Z = 01/09/2026 00:00 giờ VN.
+    const moc = new Date("2026-08-31T17:00:00.000Z");
+    expect(formatThangVN(moc)).toBe("Tháng 9/2026");
+  });
+
+  it("hiển thị đúng cho tháng hai chữ số", () => {
+    // 2026-11-30T17:00:00.000Z = 01/12/2026 00:00 giờ VN.
+    const moc = new Date("2026-11-30T17:00:00.000Z");
+    expect(formatThangVN(moc)).toBe("Tháng 12/2026");
   });
 });
