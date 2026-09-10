@@ -154,3 +154,44 @@ model NganSach {
 
   @@unique([danhMucChiTieuId, thang])
 }
+
+// ---------------------------------------------------------------------------
+// Module Thực đơn
+// ---------------------------------------------------------------------------
+
+/// Món ăn (Dish) — một hàng trong Ngân hàng món ăn (CAP-8). Module Thực đơn sở
+/// hữu độc quyền model này (AD-1) — module khác (kể cả tầng tổng hợp
+/// `app/(dashboard)`, khi tồn tại) không được đọc/ghi trực tiếp, chỉ được gọi
+/// qua các hàm `queries.ts`/`actions.ts` của module này.
+model MonAn {
+  id Int @id @default(autoincrement())
+
+  /// Tên món — bắt buộc, không được rỗng.
+  ten String
+
+  /// Đường dẫn ảnh TƯƠNG ĐỐI so với chính `app-data/uploads/` (ví dụ
+  /// "mon-an/<uuid>.jpg", KHÔNG BAO GIỜ tính từ gốc repo hay gốc dự án) — ghi
+  /// và đọc lại đều qua đúng một hàm dùng chung `resolveUploadPath()`
+  /// (`lib/resolveUploadPath.ts`, AD-4). KHÔNG BAO GIỜ lưu dữ liệu nhị phân
+  /// trong Prisma. `null` khi món chưa có ảnh (ảnh là tuỳ chọn).
+  anh String?
+
+  nguyenLieu NguyenLieu[]
+}
+
+/// Nguyên liệu (Ingredient) — một thành phần của một `MonAn` cụ thể, có tên và
+/// một ảnh tuỳ chọn riêng (cùng quy ước đường dẫn tương đối với `MonAn.anh`).
+/// Xoá `MonAn` cascade xoá luôn các `NguyenLieu` của nó — không orphan HÀNG DB
+/// (file ảnh trên đĩa thì có thể orphan, chấp nhận ở v1, xem story's I/O
+/// matrix "Delete a Món ăn").
+model NguyenLieu {
+  id Int @id @default(autoincrement())
+
+  ten String
+  anh String?
+
+  monAnId Int
+  monAn   MonAn @relation(fields: [monAnId], references: [id], onDelete: Cascade)
+
+  @@index([monAnId])
+}

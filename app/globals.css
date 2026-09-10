@@ -840,6 +840,187 @@ select {
   color: var(--ink-primary);
 }
 
+/* ------------------------------------------------ ngân hàng món ăn ---- */
+/* Story 6 (CAP-8). `.cat-wrap`/`.cat-chip`/`.cat-chip.active` (Chi tiêu,
+   above) are reused AS-IS for the ingredient filter row and for the
+   ing-chip tags inside each dish card — same pill-chip visual language
+   (DESIGN.md's filter-chip token is visually identical to cat-chip), so no
+   near-duplicate `.filter-chip`/`.ing-chip` class is added here (Code Map).
+   `.link-add`/`.icon-btn`/`.field`/`.field-label`/`.input`/`.task-form`/
+   `.form-actions`/`.field-error`/`.empty-txt` are also reused as-is. */
+
+.filter-note {
+  font-size: 12px;
+  color: var(--ink-tertiary);
+  margin: 12px 0 0;
+}
+
+.filter-note b {
+  color: var(--ink-primary);
+}
+
+.dish-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.dish-card {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-raised);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition:
+    opacity 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Món khớp bộ lọc: viền + bóng nhấn accent. Món không khớp: làm MỜ
+   (opacity), KHÔNG BAO GIỜ ẩn khỏi lưới (Do's and Don'ts, DESIGN.md). */
+.dish-card.match {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.dish-card.dim {
+  opacity: 0.5;
+}
+
+.dish-photo {
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  background: var(--surface-sunken);
+  color: var(--ink-tertiary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.dish-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dish-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.dish-name {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.match-flag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ing-list .cat-chip {
+  font-size: 10.5px;
+  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ing-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 4px;
+}
+
+.dish-actions {
+  margin-top: auto;
+  display: flex;
+  gap: var(--s-1);
+  justify-content: flex-end;
+}
+
+.add-dish-card {
+  border: 1.5px dashed var(--border-hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 12px;
+  color: var(--ink-tertiary);
+  min-height: 150px;
+  font-family: inherit;
+}
+
+.add-dish-card:hover {
+  border-color: var(--accent);
+}
+
+.add-dish-card .plus {
+  font-size: 22px;
+  color: var(--accent);
+}
+
+.add-dish-card .lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+.add-dish-card .hint {
+  font-size: 10.5px;
+  color: var(--ink-tertiary);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.ing-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.ing-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dish-thumb-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  border: 1px solid var(--border-hairline);
+  margin-bottom: 6px;
+  display: block;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

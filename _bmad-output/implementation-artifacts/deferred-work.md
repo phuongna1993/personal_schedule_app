@@ -129,3 +129,47 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/5-xem-bao-cao-chi-tieu-theo-thang.md`
   summary: The report's empty-state message ("Chưa có Giao dịch Chi nào theo Danh mục trong tháng này") is shown for at least three different underlying situations (truly no transactions, a Thu-only month, or a Chi-only-but-uncategorized month) without distinguishing them, even though `tongChi`/`tongThu` are available in the same component to disambiguate.
   evidence: Blind Hunter finding; minor UX polish, not blocking correctness.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: Replacing a Món ăn's or Nguyên liệu's photo during edit never deletes the old file on disk, and a photo written to disk during `themMonAn`/`suaMonAn` can be left orphaned if the Prisma write after it then fails — a stricter version of the same accepted-orphan class the story's own I/O matrix already allows for "Delete a Món ăn".
+  evidence: Blind Hunter + Edge Case Hunter both flagged it independently. Consistent with the app's already-accepted "no upload cleanup in v1" non-goal (story Design Notes), not worth blocking this story to add cleanup logic for a single-user local tool.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: No way to clear an already-set Món ăn/Nguyên liệu photo back to "no photo" — editing only supports keep-old-photo or replace-with-new-photo, never remove-without-replacing.
+  evidence: Blind Hunter finding; ảnh is optional at creation time (can be skipped entirely), so this only matters for someone who added a photo and later wants it gone — minor, not required by CAP-8's minimum scope.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: `next.config.ts`'s `serverActions.bodySizeLimit: "20mb"` is a global Next.js config, so it also raises the request-size ceiling for every other module's Server Actions (Chi tiêu, Lịch trình), not just Thực đơn's image uploads.
+  evidence: Blind Hunter finding; raised specifically to fit multiple 5MB Nguyên liệu photos in one `themMonAn`/`suaMonAn` submission — no per-route override exists in this Next.js version, and no other module needs anywhere near 1MB today, so the wider ceiling is low-risk but worth knowing about if a future module adds its own upload.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: Ingredient-name matching (filter chips in `layDanhSachNguyenLieuDuyNhat` and the dish-card match check) is case-sensitive with no normalization — "Thịt bò" and "thịt bò" entered on two different Món ăn produce two separate filter chips instead of one.
+  evidence: Blind Hunter finding; low practical impact for a single user who tends to type consistently, but a real UX rough edge worth a normalization pass (e.g. lowercase-compare) later.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: `layDanhSachNguyenLieuDuyNhat()`'s `orderBy: { ten: "asc" }` sorts via SQLite's default binary collation, not Vietnamese-diacritic-aware — same class of gap already accepted for `layDanhSachDanhMuc()` in Story 5.
+  evidence: Blind Hunter finding; consistent, low-severity, pre-existing-pattern gap, not a new risk introduced by this story alone.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: The instant ingredient-filter result text ("N/M món phù hợp" / the zero-match message) is not wrapped in an `aria-live`/`role="status"` region, so a screen-reader user isn't told when a client-side filter click changes the visible results.
+  evidence: Blind Hunter finding; same Accessibility Floor gap class already deferred from Stories 1, 3, and 4 ("better tackled as one pass across all screens once more of them exist").
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: No duplicate-Món-ăn-name prevention — two dishes can share the exact same `ten`, same as the already-accepted gap for `DanhMucChiTieu.ten` in Story 3.
+  evidence: Blind Hunter finding; not in this story's frozen I/O matrix, low severity for a single-user app that controls its own input.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: `suaMonAn`/`xoaMonAn` read the current row via `findUnique` before validating/transacting, with no re-check inside the transaction — a concurrent edit or delete of the same Món ăn between the read and the write (e.g. two browser tabs) can act on a stale snapshot.
+  evidence: Edge Case Hunter finding; same accepted risk class as Story 4's `HangHanMuc` stale-props gap already deferred — single-user, one-machine app (AD-5) makes the multi-tab window narrow and low-consequence.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: Opening the add-dish form while the edit form (or another add) is already open with unsaved input, or vice versa, silently discards whatever was typed in the form that was open — no warning.
+  evidence: Edge Case Hunter finding; consistent with the app's no-confirm-dialog philosophy elsewhere, but this is an implicit context-switch rather than an explicit Huỷ/scrim click, so the data loss is less expected than the app's other no-confirm cases.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: A dish/ingredient `<img>` whose stored `anh` path no longer resolves to a file on disk (e.g. manually deleted from `app-data/uploads/`) shows the browser's default broken-image icon instead of falling back to the neutral 🍽 placeholder used for `anh: null`.
+  evidence: Edge Case Hunter finding; no `onError` handler on the `<img>` elements. Narrow trigger (requires manual filesystem tampering outside the app), cosmetic consequence.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/6-ngan-hang-mon-an.md`
+  summary: None of `app/thuc-don/page.tsx`, `app/chi-tieu/page.tsx`, or `app/lich-trinh/page.tsx` wrap their server-side data-loading `Promise.all`/query calls in try/catch, and no `app/error.tsx` boundary exists anywhere in the repo — a DB read failure on any page crashes to Next.js's generic default error screen.
+  evidence: Verification Gap Reviewer finding, confirmed pre-existing and identical across all three module pages (not introduced or worsened by this story) — first time a review has surfaced it, worth one shared fix later rather than a per-page patch now.
