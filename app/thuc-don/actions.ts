@@ -6,12 +6,17 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { type KetQua, thanhCong, thatBai } from "@/lib/ketQua";
+import { tuThamSoNgay } from "@/lib/ngayVn";
 import { resolveUploadPath } from "@/lib/resolveUploadPath";
 import {
+  type BuoiEnum,
   KICH_THUOC_ANH_TOI_DA,
   KICH_THUOC_ANH_TOI_DA_MB,
+  laBuoi,
   type LoaiAnhHopLe,
   type MonAn,
+  type ThucDonSlotBe,
+  type ThucDonSlotNguoiLon,
 } from "./model";
 
 /**
@@ -475,5 +480,212 @@ export async function xoaMonAn(id: number): Promise<KetQua<{ id: number }>> {
 
     lamMoiManHinh();
     return thanhCong({ id });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Thực đơn ngày (Story 7, CAP-9/CAP-10) — hai nhánh Nhóm khẩu phần TÁCH BIỆT
+// vật lý hoàn toàn (Structural Seed). Không action nào ở đây đọc/ghi
+// GiaoDich/DanhMucChiTieu/NganSach của module Chi tiêu (Boundaries, CAP-9
+// success criterion) — mọi thao tác chỉ chạm `ThucDonNguoiLon`/`ThucDonBe`.
+// ---------------------------------------------------------------------------
+
+/** Giới hạn độ dài ghi chú điều chỉnh — cùng lý do/cỡ với `GHI_CHU` của
+ * `GiaoDich` (`app/chi-tieu/actions.ts`), chặn sớm ở biên ứng dụng. */
+const DO_DAI_GHI_CHU_TOI_DA = 200;
+
+/**
+ * Kiểm tra tham số `ngay` — nhận `yyyy-mm-dd` (cùng dạng `tuThamSoNgay()`
+ * chấp nhận, mirror `kiemTraGiaoDich()`'s xử lý `ngay`,
+ * `app/chi-tieu/actions.ts:120-123`) thay vì nhận thẳng một `Date` — tránh
+ * phụ thuộc vào việc RSC serialize `Date` xuyên qua biên Server Action.
+ */
+function kiemTraNgayThamSo(giaTri: unknown): KetQua<Date> {
+  const ngay = typeof giaTri === "string" ? tuThamSoNgay(giaTri) : null;
+  if (!ngay) {
+    return thatBai("NGAY_KHONG_HOP_LE", "Ngày không hợp lệ.", "ngay");
+  }
+  return thanhCong(ngay);
+}
+
+function kiemTraBuoiThamSo(giaTri: unknown): KetQua<BuoiEnum> {
+  if (!laBuoi(giaTri)) {
+    return thatBai("BUOI_KHONG_HOP_LE", "Bữa không hợp lệ.", "buoi");
+  }
+  return thanhCong(giaTri);
+}
+
+function kiemTraMonAnIdThamSo(giaTri: unknown): KetQua<number> {
+  if (!Number.isInteger(giaTri) || (giaTri as number) <= 0) {
+    return thatBai(
+      "MON_AN_KHONG_HOP_LE",
+      "Chọn một Món ăn cho bữa này.",
+      "monAnId",
+    );
+  }
+  return thanhCong(giaTri as number);
+}
+
+/** Chỉ dùng cho nhánh Người lớn — ghi chú LUÔN tuỳ chọn (FR-10). */
+function kiemTraGhiChuThamSo(giaTri: unknown): KetQua<string | null> {
+  const ghiChuTho = typeof giaTri === "string" ? giaTri.trim() : "";
+  if (ghiChuTho.length > DO_DAI_GHI_CHU_TOI_DA) {
+    return thatBai(
+      "GHI_CHU_QUA_DAI",
+      `Ghi chú tối đa ${DO_DAI_GHI_CHU_TOI_DA} ký tự.`,
+      "ghiChu",
+    );
+  }
+  return thanhCong(ghiChuTho.length > 0 ? ghiChuTho : null);
+}
+
+/**
+ * Xác nhận Món ăn còn tồn tại trước khi gán vào một slot — cho ra lỗi gắn
+ * đúng trường (`monAnId`) thay vì để lộ lỗi ràng buộc khoá ngoại trần của
+ * Prisma lên UI (mirror `xacNhanDanhMucTonTai()`, `app/chi-tieu/actions.ts`).
+ */
+async function xacNhanMonAnTonTai(id: number): Promise<KetQua<true>> {
+  const coMon = await prisma.monAn.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!coMon) {
+    return thatBai(
+      "MON_AN_KHONG_TON_TAI",
+      "Món ăn này không còn tồn tại.",
+      "monAnId",
+    );
+  }
+  return thanhCong(true as const);
+}
+
+/**
+ * Gán/thay Món ăn cho một slot (ngay, buoi) của nhánh "Người lớn & bé 4
+ * tuổi", kèm ghi chú điều chỉnh tuỳ chọn (CAP-9/CAP-10). `upsert` trên khoá
+ * unique `(ngay, buoi)` là một lệnh nguyên tử — gán lại một slot đã có
+ * `monAnId` UPDATE đúng hàng đó, không bao giờ tạo thêm hàng thứ hai
+ * (Boundaries: "exactly one Món ăn per slot"), mirror `datHanMucNganSach()`'s
+ * upsert (`app/chi-tieu/actions.ts`).
+ */
+export async function luuThucDonNguoiLon(
+  ngay: unknown,
+  buoi: unknown,
+  monAnId: unknown,
+  ghiChu: unknown,
+): Promise<KetQua<ThucDonSlotNguoiLon>> {
+  const daNgay = kiemTraNgayThamSo(ngay);
+  if (!daNgay.ok) return daNgay;
+  const daBuoi = kiemTraBuoiThamSo(buoi);
+  if (!daBuoi.ok) return daBuoi;
+  const daMonAn = kiemTraMonAnIdThamSo(monAnId);
+  if (!daMonAn.ok) return daMonAn;
+  const daGhiChu = kiemTraGhiChuThamSo(ghiChu);
+  if (!daGhiChu.ok) return daGhiChu;
+
+  return boiCanhGhi(async () => {
+    const xacNhan = await xacNhanMonAnTonTai(daMonAn.data);
+    if (!xacNhan.ok) return xacNhan;
+
+    const row = await prisma.thucDonNguoiLon.upsert({
+      where: { ngay_buoi: { ngay: daNgay.data, buoi: daBuoi.data } },
+      create: {
+        ngay: daNgay.data,
+        buoi: daBuoi.data,
+        monAnId: daMonAn.data,
+        ghiChu: daGhiChu.data,
+      },
+      update: { monAnId: daMonAn.data, ghiChu: daGhiChu.data },
+      include: { monAn: { select: { ten: true } } },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({
+      buoi: daBuoi.data,
+      monAnId: row.monAnId,
+      tenMon: row.monAn.ten,
+      ghiChu: row.ghiChu,
+    });
+  });
+}
+
+/** Gỡ Món ăn khỏi một slot của nhánh "Người lớn & bé 4 tuổi" — slot trở lại
+ * "Chưa chọn món". Xoá một slot vốn đã trống là thao tác vô hại — trả thành
+ * công thay vì báo lỗi "không tìm thấy" (`deleteMany` không đếm được hàng nào
+ * cũng không phải một trạng thái sai). */
+export async function xoaThucDonNguoiLon(
+  ngay: unknown,
+  buoi: unknown,
+): Promise<KetQua<{ buoi: BuoiEnum }>> {
+  const daNgay = kiemTraNgayThamSo(ngay);
+  if (!daNgay.ok) return daNgay;
+  const daBuoi = kiemTraBuoiThamSo(buoi);
+  if (!daBuoi.ok) return daBuoi;
+
+  return boiCanhGhi(async () => {
+    await prisma.thucDonNguoiLon.deleteMany({
+      where: { ngay: daNgay.data, buoi: daBuoi.data },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({ buoi: daBuoi.data });
+  });
+}
+
+/**
+ * Gán/thay Món ăn cho một slot (ngay, buoi) của nhánh "Bé dưới 1 tuổi"
+ * (CAP-9) — KHÔNG có tham số `ghiChu` (Structural Seed: cột này không tồn
+ * tại ở nhánh Bé). Cùng luật `upsert` nguyên tử như `luuThucDonNguoiLon()`,
+ * trên bảng Prisma HOÀN TOÀN RIÊNG (`ThucDonBe`).
+ */
+export async function luuThucDonBe(
+  ngay: unknown,
+  buoi: unknown,
+  monAnId: unknown,
+): Promise<KetQua<ThucDonSlotBe>> {
+  const daNgay = kiemTraNgayThamSo(ngay);
+  if (!daNgay.ok) return daNgay;
+  const daBuoi = kiemTraBuoiThamSo(buoi);
+  if (!daBuoi.ok) return daBuoi;
+  const daMonAn = kiemTraMonAnIdThamSo(monAnId);
+  if (!daMonAn.ok) return daMonAn;
+
+  return boiCanhGhi(async () => {
+    const xacNhan = await xacNhanMonAnTonTai(daMonAn.data);
+    if (!xacNhan.ok) return xacNhan;
+
+    const row = await prisma.thucDonBe.upsert({
+      where: { ngay_buoi: { ngay: daNgay.data, buoi: daBuoi.data } },
+      create: { ngay: daNgay.data, buoi: daBuoi.data, monAnId: daMonAn.data },
+      update: { monAnId: daMonAn.data },
+      include: { monAn: { select: { ten: true } } },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({
+      buoi: daBuoi.data,
+      monAnId: row.monAnId,
+      tenMon: row.monAn.ten,
+    });
+  });
+}
+
+/** Gỡ Món ăn khỏi một slot của nhánh "Bé dưới 1 tuổi" — cùng luật với
+ * `xoaThucDonNguoiLon()` ở trên, trên bảng `ThucDonBe` riêng. */
+export async function xoaThucDonBe(
+  ngay: unknown,
+  buoi: unknown,
+): Promise<KetQua<{ buoi: BuoiEnum }>> {
+  const daNgay = kiemTraNgayThamSo(ngay);
+  if (!daNgay.ok) return daNgay;
+  const daBuoi = kiemTraBuoiThamSo(buoi);
+  if (!daBuoi.ok) return daBuoi;
+
+  return boiCanhGhi(async () => {
+    await prisma.thucDonBe.deleteMany({
+      where: { ngay: daNgay.data, buoi: daBuoi.data },
+    });
+
+    lamMoiManHinh();
+    return thanhCong({ buoi: daBuoi.data });
   });
 }

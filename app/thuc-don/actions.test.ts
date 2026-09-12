@@ -34,6 +34,14 @@ const { prismaMock, revalidatePathMock, fsMock, randomUUIDMock } = vi.hoisted(
         updateMany: vi.fn(),
         createMany: vi.fn(),
       },
+      thucDonNguoiLon: {
+        upsert: vi.fn(),
+        deleteMany: vi.fn(),
+      },
+      thucDonBe: {
+        upsert: vi.fn(),
+        deleteMany: vi.fn(),
+      },
       $transaction: vi.fn(),
     },
     revalidatePathMock: vi.fn(),
@@ -50,7 +58,15 @@ vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 vi.mock("node:fs", () => ({ promises: fsMock }));
 vi.mock("node:crypto", () => ({ randomUUID: randomUUIDMock }));
 
-const { themMonAn, suaMonAn, xoaMonAn } = await import("./actions");
+const {
+  themMonAn,
+  suaMonAn,
+  xoaMonAn,
+  luuThucDonNguoiLon,
+  xoaThucDonNguoiLon,
+  luuThucDonBe,
+  xoaThucDonBe,
+} = await import("./actions");
 
 // ---------------------------------------------------------------------------
 // Helper dựng File với đúng magic bytes cho từng định dạng — `layLoaiAnhTu
@@ -676,4 +692,343 @@ describe("xoaMonAn", () => {
 /** `path.sep` gián tiếp — tránh import `node:path` chỉ để lấy một ký tự. */
 function path(): string {
   return process.platform === "win32" ? "\\" : "/";
+}
+
+// ---------------------------------------------------------------------------
+// Thực đơn ngày (Story 7, CAP-9/CAP-10) — I/O & Edge-Case Matrix của story.
+// ---------------------------------------------------------------------------
+
+describe("luuThucDonNguoiLon", () => {
+  it("chặn ngày dị dạng", async () => {
+    const ketQua = await luuThucDonNguoiLon("khong-phai-ngay", "Sang", 1, null);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("NGAY_KHONG_HOP_LE");
+    expect(prismaMock.thucDonNguoiLon.upsert).not.toHaveBeenCalled();
+  });
+
+  it("chặn bữa không hợp lệ", async () => {
+    const ketQua = await luuThucDonNguoiLon("2026-09-12", "Chieu", 1, null);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("BUOI_KHONG_HOP_LE");
+    expect(ketQua.error.field).toBe("buoi");
+  });
+
+  it("chặn monAnId không hợp lệ", async () => {
+    const ketQua = await luuThucDonNguoiLon("2026-09-12", "Sang", 0, null);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MON_AN_KHONG_HOP_LE");
+    expect(ketQua.error.field).toBe("monAnId");
+  });
+
+  it("chặn ghi chú vượt quá 200 ký tự", async () => {
+    const ketQua = await luuThucDonNguoiLon(
+      "2026-09-12",
+      "Sang",
+      1,
+      "a".repeat(201),
+    );
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GHI_CHU_QUA_DAI");
+    expect(ketQua.error.field).toBe("ghiChu");
+    expect(prismaMock.monAn.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("chấp nhận ghi chú đúng 200 ký tự (biên trên)", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 1 });
+    prismaMock.thucDonNguoiLon.upsert.mockResolvedValue({
+      monAnId: 1,
+      ghiChu: "a".repeat(200),
+      monAn: { ten: "Bò xào thập cẩm" },
+    });
+
+    const ketQua = await luuThucDonNguoiLon(
+      "2026-09-12",
+      "Sang",
+      1,
+      "a".repeat(200),
+    );
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.ghiChu).toBe("a".repeat(200));
+  });
+
+  it("chặn gán một Món ăn không còn tồn tại", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue(null);
+
+    const ketQua = await luuThucDonNguoiLon("2026-09-12", "Sang", 999, null);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MON_AN_KHONG_TON_TAI");
+    expect(ketQua.error.field).toBe("monAnId");
+    expect(prismaMock.thucDonNguoiLon.upsert).not.toHaveBeenCalled();
+  });
+
+  it("Assign a dish to an empty slot: upsert đúng khoá (ngay, buoi), trả tên món + ghiChu null khi không nhập", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 1 });
+    prismaMock.thucDonNguoiLon.upsert.mockResolvedValue({
+      monAnId: 1,
+      ghiChu: null,
+      monAn: { ten: "Bò xào thập cẩm" },
+    });
+
+    const ketQua = await luuThucDonNguoiLon("2026-09-12", "Trua", 1, "   ");
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data).toEqual({
+      buoi: "Trua",
+      monAnId: 1,
+      tenMon: "Bò xào thập cẩm",
+      ghiChu: null,
+    });
+    expect(prismaMock.thucDonNguoiLon.upsert).toHaveBeenCalledWith({
+      where: { ngay_buoi: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Trua" } },
+      create: {
+        ngay: tuThamSoNgayTest("2026-09-12"),
+        buoi: "Trua",
+        monAnId: 1,
+        ghiChu: null,
+      },
+      update: { monAnId: 1, ghiChu: null },
+      include: { monAn: { select: { ten: true } } },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/thuc-don/chon-mon");
+  });
+
+  it("Add a note to a slot: ghi chú có nội dung được trim rồi lưu", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 1 });
+    prismaMock.thucDonNguoiLon.upsert.mockResolvedValue({
+      monAnId: 1,
+      ghiChu: "Bớt cay",
+      monAn: { ten: "Bò xào thập cẩm" },
+    });
+
+    const ketQua = await luuThucDonNguoiLon(
+      "2026-09-12",
+      "Trua",
+      1,
+      "  Bớt cay  ",
+    );
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.ghiChu).toBe("Bớt cay");
+    expect(prismaMock.thucDonNguoiLon.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ ghiChu: "Bớt cay" }),
+        update: expect.objectContaining({ ghiChu: "Bớt cay" }),
+      }),
+    );
+  });
+
+  it("Replace a slot's dish: upsert cùng khoá (ngay, buoi) — không tạo hàng thứ hai", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 2 });
+    prismaMock.thucDonNguoiLon.upsert.mockResolvedValue({
+      monAnId: 2,
+      ghiChu: null,
+      monAn: { ten: "Canh chua cá lóc" },
+    });
+
+    await luuThucDonNguoiLon("2026-09-12", "Sang", 2, null);
+
+    expect(prismaMock.thucDonNguoiLon.upsert).toHaveBeenCalledTimes(1);
+    expect(prismaMock.thucDonNguoiLon.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { ngay_buoi: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Sang" } },
+        update: { monAnId: 2, ghiChu: null },
+      }),
+    );
+  });
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 1 });
+    prismaMock.thucDonNguoiLon.upsert.mockRejectedValue(
+      new Error("SQLITE_BUSY: database is locked"),
+    );
+
+    const ketQua = await luuThucDonNguoiLon("2026-09-12", "Sang", 1, null);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("xoaThucDonNguoiLon", () => {
+  it("Clear a slot: xoá đúng hàng theo (ngay, buoi), thành công", async () => {
+    prismaMock.thucDonNguoiLon.deleteMany.mockResolvedValue({ count: 1 });
+
+    const ketQua = await xoaThucDonNguoiLon("2026-09-12", "Trua");
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data).toEqual({ buoi: "Trua" });
+    expect(prismaMock.thucDonNguoiLon.deleteMany).toHaveBeenCalledWith({
+      where: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Trua" },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/thuc-don/chon-mon");
+  });
+
+  it("xoá một slot vốn đã trống -> vẫn thành công (không phải lỗi)", async () => {
+    prismaMock.thucDonNguoiLon.deleteMany.mockResolvedValue({ count: 0 });
+
+    const ketQua = await xoaThucDonNguoiLon("2026-09-12", "Toi");
+
+    expect(ketQua.ok).toBe(true);
+  });
+
+  it("chặn ngày/bữa không hợp lệ trước khi chạm Prisma", async () => {
+    const ketQuaNgay = await xoaThucDonNguoiLon("khong-hop-le", "Sang");
+    expect(ketQuaNgay.ok).toBe(false);
+
+    const ketQuaBuoi = await xoaThucDonNguoiLon("2026-09-12", "khong-hop-le");
+    expect(ketQuaBuoi.ok).toBe(false);
+
+    expect(prismaMock.thucDonNguoiLon.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("luuThucDonBe", () => {
+  it("chặn ngày dị dạng", async () => {
+    const ketQua = await luuThucDonBe("khong-phai-ngay", "Sang", 1);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("NGAY_KHONG_HOP_LE");
+    expect(prismaMock.thucDonBe.upsert).not.toHaveBeenCalled();
+  });
+
+  it("chặn bữa không hợp lệ", async () => {
+    const ketQua = await luuThucDonBe("2026-09-12", "Chieu", 1);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("BUOI_KHONG_HOP_LE");
+    expect(ketQua.error.field).toBe("buoi");
+    expect(prismaMock.thucDonBe.upsert).not.toHaveBeenCalled();
+  });
+
+  it("chặn monAnId không hợp lệ", async () => {
+    const ketQua = await luuThucDonBe("2026-09-12", "Sang", 0);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MON_AN_KHONG_HOP_LE");
+    expect(ketQua.error.field).toBe("monAnId");
+    expect(prismaMock.monAn.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 3 });
+    prismaMock.thucDonBe.upsert.mockRejectedValue(
+      new Error("SQLITE_BUSY: database is locked"),
+    );
+
+    const ketQua = await luuThucDonBe("2026-09-12", "Sang", 3);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("Assign a dish (Bé dưới 1 tuổi): upsert không có ghiChu trong payload", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 3 });
+    prismaMock.thucDonBe.upsert.mockResolvedValue({
+      monAnId: 3,
+      monAn: { ten: "Cháo yến mạch bí đỏ" },
+    });
+
+    const ketQua = await luuThucDonBe("2026-09-12", "Sang", 3);
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data).toEqual({
+      buoi: "Sang",
+      monAnId: 3,
+      tenMon: "Cháo yến mạch bí đỏ",
+    });
+    expect(prismaMock.thucDonBe.upsert).toHaveBeenCalledWith({
+      where: { ngay_buoi: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Sang" } },
+      create: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Sang", monAnId: 3 },
+      update: { monAnId: 3 },
+      include: { monAn: { select: { ten: true } } },
+    });
+  });
+
+  it("chặn gán Món ăn không tồn tại, không tạo/sửa gì", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue(null);
+
+    const ketQua = await luuThucDonBe("2026-09-12", "Sang", 999);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MON_AN_KHONG_TON_TAI");
+    expect(prismaMock.thucDonBe.upsert).not.toHaveBeenCalled();
+  });
+
+  it("hai nhánh Nhóm khẩu phần độc lập: luuThucDonBe không đụng bảng ThucDonNguoiLon", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue({ id: 3 });
+    prismaMock.thucDonBe.upsert.mockResolvedValue({
+      monAnId: 3,
+      monAn: { ten: "Cháo yến mạch bí đỏ" },
+    });
+
+    await luuThucDonBe("2026-09-12", "Sang", 3);
+
+    expect(prismaMock.thucDonNguoiLon.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("xoaThucDonBe", () => {
+  it("Clear a slot (Bé dưới 1 tuổi): xoá đúng hàng, không đụng ThucDonNguoiLon", async () => {
+    prismaMock.thucDonBe.deleteMany.mockResolvedValue({ count: 1 });
+
+    const ketQua = await xoaThucDonBe("2026-09-12", "Toi");
+
+    expect(ketQua.ok).toBe(true);
+    expect(prismaMock.thucDonBe.deleteMany).toHaveBeenCalledWith({
+      where: { ngay: tuThamSoNgayTest("2026-09-12"), buoi: "Toi" },
+    });
+    expect(prismaMock.thucDonNguoiLon.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("xoá một slot vốn đã trống -> vẫn thành công (không phải lỗi)", async () => {
+    prismaMock.thucDonBe.deleteMany.mockResolvedValue({ count: 0 });
+
+    const ketQua = await xoaThucDonBe("2026-09-12", "Sang");
+
+    expect(ketQua.ok).toBe(true);
+  });
+
+  it("chặn ngày/bữa không hợp lệ trước khi chạm Prisma", async () => {
+    const ketQuaNgay = await xoaThucDonBe("khong-hop-le", "Sang");
+    expect(ketQuaNgay.ok).toBe(false);
+
+    const ketQuaBuoi = await xoaThucDonBe("2026-09-12", "khong-hop-le");
+    expect(ketQuaBuoi.ok).toBe(false);
+
+    expect(prismaMock.thucDonBe.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+/** Cùng phép tính mốc ngày VN với `lib/ngayVn.ts`'s `tuThamSoNgay()`, dùng để
+ * khớp giá trị `Date` mong đợi trong assertion mà không import thẳng
+ * `lib/ngayVn` (giữ test độc lập khỏi việc mock module đó). */
+function tuThamSoNgayTest(gia: string): Date {
+  const [nam, thang, ngay] = gia.split("-").map(Number);
+  return new Date(Date.UTC(nam, thang - 1, ngay) - 7 * 60 * 60 * 1000);
 }

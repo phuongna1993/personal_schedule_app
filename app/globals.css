@@ -1021,6 +1021,145 @@ select {
   display: block;
 }
 
+/* ------------------------------------------- gán thực đơn ngày (Story 7) -- */
+/* mockups/meal-picker.html's `.section-divider`/`.assign-grid`/`.assign-col`/
+   `.meal-slot`/`.meal-time`/`.note-input`, ported onto this file's tokens.
+   `.meal-select` is a native `<select>` here (Ask First: none — native vs.
+   custom dropdown is ordinary UI implementation), styled to read like the
+   mock's pill-shaped control instead of the mock's span+chevron markup.
+   `.day-nav`/`.day-nav-btn`/`.day-nav-label`/`.info-box` above are reused
+   as-is (Code Map). */
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-6) 0 var(--s-4);
+}
+
+.section-divider h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--ink-primary);
+}
+
+.section-divider .line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-hairline);
+}
+
+.section-divider .sub {
+  font-size: 12.5px;
+  color: var(--ink-tertiary);
+  white-space: nowrap;
+}
+
+.assign-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+}
+
+@media (max-width: 640px) {
+  .assign-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.assign-col {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-xl);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.assign-col h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-primary);
+}
+
+.assign-col .group-sub {
+  font-size: 12px;
+  color: var(--ink-tertiary);
+  margin-bottom: var(--s-4);
+}
+
+.meal-slot {
+  padding: var(--s-3) 0;
+  border-bottom: 1px dashed var(--border-hairline);
+}
+
+.meal-slot:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.meal-slot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: 6px;
+}
+
+.meal-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--surface-sunken);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+  width: 44px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.meal-select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  color: var(--ink-primary);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.meal-select:disabled {
+  opacity: 0.6;
+}
+
+.note-input {
+  width: 100%;
+  margin-top: var(--s-2);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.note-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.note-input::placeholder {
+  color: var(--ink-tertiary);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

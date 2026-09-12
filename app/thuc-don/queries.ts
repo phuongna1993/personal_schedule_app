@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { MonAn } from "./model";
+import { layMocNgayVN } from "@/lib/ngayVn";
+import { BUOI, type MonAn, type ThucDonNgayDuLieu } from "./model";
 
 /**
  * AD-1 — Module Thực đơn sở hữu độc quyền các model `MonAn`/`NguyenLieu`, kể
@@ -45,4 +46,51 @@ export async function layDanhSachNguyenLieuDuyNhat(): Promise<string[]> {
   });
 
   return rows.map((row) => row.ten);
+}
+
+/**
+ * Đọc Thực đơn ngày của MỘT ngày cụ thể (CAP-9/CAP-10) — cả hai nhánh Nhóm
+ * khẩu phần, LUÔN đủ 3 slot mỗi nhánh theo đúng thứ tự `BUOI`, kể cả khi chưa
+ * có hàng nào cho ngày đó (I/O matrix: "First visit to a day, no menu yet").
+ *
+ * Đường đọc THUẦN — không tự tạo hàng nào (khác `taoLichTrinhNgayTuMau()` của
+ * module Lịch trình, module này không có khái niệm khởi tạo/template, xem
+ * Boundaries — Never).
+ */
+export async function layThucDonNgay(ngay: Date): Promise<ThucDonNgayDuLieu> {
+  const moc = layMocNgayVN(ngay);
+
+  const [hangNguoiLon, hangBe] = await Promise.all([
+    prisma.thucDonNguoiLon.findMany({
+      where: { ngay: moc },
+      include: { monAn: { select: { ten: true } } },
+    }),
+    prisma.thucDonBe.findMany({
+      where: { ngay: moc },
+      include: { monAn: { select: { ten: true } } },
+    }),
+  ]);
+
+  const nguoiLonTheoBuoi = new Map(hangNguoiLon.map((h) => [h.buoi, h] as const));
+  const beTheoBuoi = new Map(hangBe.map((h) => [h.buoi, h] as const));
+
+  return {
+    nguoiLon: BUOI.map((buoi) => {
+      const hang = nguoiLonTheoBuoi.get(buoi);
+      return {
+        buoi,
+        monAnId: hang?.monAnId ?? null,
+        tenMon: hang?.monAn.ten ?? null,
+        ghiChu: hang?.ghiChu ?? null,
+      };
+    }),
+    be: BUOI.map((buoi) => {
+      const hang = beTheoBuoi.get(buoi);
+      return {
+        buoi,
+        monAnId: hang?.monAnId ?? null,
+        tenMon: hang?.monAn.ten ?? null,
+      };
+    }),
+  };
 }

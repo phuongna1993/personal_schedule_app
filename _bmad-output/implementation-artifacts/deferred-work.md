@@ -30,6 +30,30 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
   summary: `LichTrinhNgayView`'s check-off/edit/delete buttons all share one global `useTransition`, so any single row's pending action disables every other row's checkbox and buttons until it resolves.
   evidence: Blind Hunter finding; identical pre-existing pattern in Story 1's `TrinhSoanThaoMau`, so it's a cross-story UX rough edge rather than something unique to this story — better fixed once, across both screens, than twice.
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: No component-level test coverage for the new `GanThucDonNgayView`/`NguoiLonSlot`/`BeSlot`/`ChonMonSelect` client components in `app/thuc-don/chon-mon/NganHangMonAnView.tsx` — only the underlying Server Actions and queries are unit-tested.
+  evidence: Blind Hunter review finding; no component-test infra (jsdom/@testing-library) exists anywhere in the project yet, same accepted gap already logged for Story 1's `TrinhSoanThaoMau` and every subsequent story's client components — not unique to Story 7.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: `xacNhanMonAnTonTai()` then a separate `upsert()` call in `luuThucDonNguoiLon`/`luuThucDonBe` (`app/thuc-don/actions.ts`) has a narrow TOCTOU gap — a Món ăn deleted between the two calls surfaces as generic `LOI_HE_THONG` instead of `MON_AN_KHONG_TON_TAI`.
+  evidence: Edge Case Hunter review finding; this exact check-then-write shape mirrors `xacNhanDanhMucTonTai()` in `app/chi-tieu/actions.ts` (explicitly cited as the mirrored pattern in code comments), so the same narrow race already exists pre-Story-7 in the Chi tiêu module — not a new regression.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: Per-slot error text (`<p className="field-error" role="alert">`) in `NguoiLonSlot`/`BeSlot` isn't linked via `aria-describedby` to the dish `<select>`/note `<input>` it belongs to.
+  evidence: Blind Hunter review finding; the same unlinked pattern is already the dominant convention across `app/chi-tieu/ChiTieuView.tsx` and most of `app/lich-trinh/LichTrinhNgayView.tsx` (only one of four existing occurrences links via an `id`) — a pre-existing, app-wide inconsistency, not introduced by this story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: `app/thuc-don/chon-mon/page.tsx`'s `searchParams: Promise<{ ngay?: string }>` typing doesn't guard against a duplicated `?ngay=` query key, which Next.js would deliver as a string array at runtime.
+  evidence: Edge Case Hunter review finding; this is an exact, deliberate mirror of `app/lich-trinh/page.tsx`'s identical existing signature/pattern (Boundaries: "Day scoping mirrors `app/lich-trinh/page.tsx`'s existing pattern exactly") — pre-existing across the app, not a new gap.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: Two near-simultaneous writes to the same slot (e.g. a note-save transition racing a dish-change transition on the same `(ngay, buoi)`) could clobber each other, since both go through a full-row `upsert` with no optimistic concurrency check.
+  evidence: Blind Hunter review finding; low real-world likelihood in a single-user, single-session local app (AD-5), and the same class of unguarded-concurrent-write gap is already accepted for Stories 1-3's shared-`useTransition` findings in this file.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
+  summary: Allowing multiple Món ăn per meal slot (e.g. rice + stir-fry together for one bữa, matching the mock's comma-joined "Cơm, Bò xào thập cẩm" cell and the ARCHITECTURE-SPINE.md ERD's `NhomKhauPhan }o--o{ MonAn` many-to-many notation) — narrowed out of Story 7, which now assigns exactly one Món ăn per (ngày, bữa, Nhóm khẩu phần) slot.
+  evidence: The multi-dish design (plus its knock-on effect of denormalizing the CAP-10 adjustment note across every dish-row of a slot) pushed the spec to ~3206 tokens, well over the 1600 target. Human chose Split [S] to narrow to single-dish-per-slot rather than accept the size, since it also simplifies the UI (single dropdown instead of multi-select) and removes the note-duplication design wrinkle entirely.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/3-ghi-chi-tieu-ngan-sach.md`
   summary: Full Danh mục chi tiêu management (rename/delete) and Ngân sách per-category-per-month budgeting (CAP-5) — narrowed out of Story 3, which now covers CAP-4 (Giao dịch logging) only with minimal inline category creation.
   evidence: Combined CAP-4+CAP-5 spec measured ~2846 tokens (cl100k estimate), well over the 900-1600 target — risks context rot for the implementation agent. CAP-4 and CAP-5 are already distinct capabilities in SPEC.md, and Giao dịch logging only strictly needs categories to exist (creatable), not full CRUD + budgeting, making this a natural rather than artificial split. Human chose Split [S] over accepting the oversized single spec.

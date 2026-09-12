@@ -177,6 +177,12 @@ model MonAn {
   anh String?
 
   nguyenLieu NguyenLieu[]
+
+  /// Story 7 (CAP-9/CAP-10) — hai nhánh Thực đơn ngày tham chiếu Món ăn này.
+  /// `onDelete: Restrict` trên cả hai nhánh (xem dưới) chặn xoá một Món ăn
+  /// còn đang được gán trong bất kỳ Thực đơn ngày nào (Boundaries).
+  thucDonNguoiLon ThucDonNguoiLon[]
+  thucDonBe       ThucDonBe[]
 }
 
 /// Nguyên liệu (Ingredient) — một thành phần của một `MonAn` cụ thể, có tên và
@@ -193,5 +199,60 @@ model NguyenLieu {
   monAnId Int
   monAn   MonAn @relation(fields: [monAnId], references: [id], onDelete: Cascade)
 
+  @@index([monAnId])
+}
+
+// ---------------------------------------------------------------------------
+// Module Thực đơn — Thực đơn ngày (Story 7, CAP-9/CAP-10)
+// ---------------------------------------------------------------------------
+
+/// Thực đơn ngày — nhánh "Người lớn & bé 4 tuổi" (CAP-9). Vật lý TÁCH BIỆT
+/// HOÀN TOÀN khỏi `ThucDonBe` bên dưới (Structural Seed) — không dùng chung
+/// một bảng với cột discriminator/branch. Đúng một hàng cho mỗi (ngay, buoi)
+/// (`@@unique([ngay, buoi])`): gán lại một bữa đã có UPDATE hàng đó, không
+/// bao giờ tạo thêm hàng thứ hai cho cùng slot (Boundaries: "exactly one Món
+/// ăn per slot").
+///
+/// `ghiChu` (FR-10/CAP-10) chỉ tồn tại về mặt CẤU TRÚC ở đây — `ThucDonBe`
+/// không có cột này, không phải một cột dùng chung rồi ẩn đi.
+model ThucDonNguoiLon {
+  id Int @id @default(autoincrement())
+
+  /// Mốc 00:00 giờ Asia/Ho_Chi_Minh của ngày này — tính qua `layMocNgayVN()`/
+  /// `tuThamSoNgay()` ở `lib/ngayVn.ts`, không dùng UTC làm mốc.
+  ngay DateTime
+
+  /// "Sang" | "Trua" | "Toi" — SQLite không hỗ trợ enum trong Prisma, nên lưu
+  /// String và ép ràng buộc ở tầng ứng dụng, xem `BUOI`/`laBuoi()` trong
+  /// `app/thuc-don/model.ts`.
+  buoi String
+
+  /// Ghi chú điều chỉnh riêng cho bé 4 tuổi — LUÔN tuỳ chọn (FR-10: không
+  /// nhập không cản trở việc lưu).
+  ghiChu String?
+
+  monAnId Int
+  /// Xoá một Món ăn đang được gán ở đây bị CHẶN (`onDelete: Restrict`) — mirror
+  /// `GiaoDich`/`NganSach`'s quan hệ tới `DanhMucChiTieu`, không bao giờ cascade
+  /// xoá âm thầm làm mất lịch sử Thực đơn đã lưu.
+  monAn MonAn @relation(fields: [monAnId], references: [id], onDelete: Restrict)
+
+  @@unique([ngay, buoi])
+  @@index([monAnId])
+}
+
+/// Thực đơn ngày — nhánh "Bé dưới 1 tuổi" (CAP-9). Bảng Prisma RIÊNG HOÀN
+/// TOÀN khỏi `ThucDonNguoiLon` ở trên — cùng shape ngoại trừ KHÔNG có cột
+/// `ghiChu` (FR-10 chỉ áp cho nhánh Người lớn, Structural Seed).
+model ThucDonBe {
+  id Int @id @default(autoincrement())
+
+  ngay DateTime
+  buoi String
+
+  monAnId Int
+  monAn   MonAn @relation(fields: [monAnId], references: [id], onDelete: Restrict)
+
+  @@unique([ngay, buoi])
   @@index([monAnId])
 }
