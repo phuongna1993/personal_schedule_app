@@ -291,4 +291,5 @@ model BuoiHoc {
   ngay DateTime
 
   @@index([kyNang])
+  @@index([ngay])
 }

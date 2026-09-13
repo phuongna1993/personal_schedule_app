@@ -37,3 +37,43 @@ export type BuoiHocDaGhi = {
    * `lib/ngayVn.ts`. */
   ngay: Date;
 };
+
+/** Hình dạng thô của một hàng Prisma `BuoiHoc` — đủ trường để
+ * `dinhDangBuoiHoc()` chuẩn hoá, không phụ thuộc kiểu Prisma cụ thể nào (để
+ * file này không phải import `lib/generated/prisma`). */
+export type BuoiHocHangPrisma = {
+  id: number;
+  kyNang: string;
+  noiDung: string;
+  thoiLuongPhut: number;
+  ngay: Date;
+};
+
+/** Chuẩn hoá một hàng Prisma `BuoiHoc` thô về `BuoiHocDaGhi` — dùng chung bởi
+ * `actions.ts` (biên GHI) và `queries.ts` (biên ĐỌC) để không có hai bản sao
+ * trôi dạt khác nhau của cùng một logic chuẩn hoá `kyNang`. */
+export function dinhDangBuoiHoc(row: BuoiHocHangPrisma): BuoiHocDaGhi {
+  return {
+    id: row.id,
+    kyNang: laKyNang(row.kyNang) ? row.kyNang : "TiengAnh",
+    noiDung: row.noiDung,
+    thoiLuongPhut: row.thoiLuongPhut,
+    ngay: row.ngay,
+  };
+}
+
+/** Tiến độ (CAP-12) của MỘT Kỹ năng — streak chạy (không phụ thuộc tháng
+ * đang xem) + lịch sử/tổng thời lượng của đúng tháng đang xem qua
+ * `?thang=`. Đây là dữ liệu tầng đọc (kết quả `tinhStreak()` +
+ * `layLichSuThang()` gộp lại ở `page.tsx`), không phải UI state cục bộ — nên
+ * nằm ở `model.ts`, không phải `HocTapView.tsx`. */
+export type TienDoKyNang = {
+  /** Số ngày liên tiếp có ít nhất một Buổi học, tính tới hôm nay — KHÔNG đổi
+   * theo `?thang=` đang xem (Boundaries: "never scoped to the displayed
+   * month"). */
+  streak: number;
+  /** Buổi học của Kỹ năng này trong tháng đang xem. */
+  buoiHoc: BuoiHocDaGhi[];
+  /** Tổng `thoiLuongPhut` của tháng đang xem. */
+  tongThoiLuongPhut: number;
+};

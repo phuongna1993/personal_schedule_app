@@ -74,6 +74,30 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
   summary: `KyNangForm` in `app/hoc-tap/HocTapView.tsx` has no guard against two near-simultaneous submits before `dangGui`/`disabled` takes effect, which could create two `BuoiHoc` rows for one intended save.
   evidence: Blind Hunter / Edge Case Hunter finding; the same unguarded double-submit shape (disable-on-pending via `useTransition`, no explicit re-entrancy guard) is already the established pattern across every other module's forms (`MonAnCard`, `FormMonAn`, `NguoiLonSlot`, `BeSlot`) — pre-existing, not new to this story.
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: No distinct empty state for "this Kỹ năng has never had a single Buổi học" vs. "just no sessions in the currently-viewed month" — both render the same streak-0/total-0/empty-list state in `TienDoCot` (`app/hoc-tap/HocTapView.tsx`).
+  evidence: Blind Hunter review finding; would need a new per-Kỹ-năng "has any session ever" query beyond what this story's Code Map scoped, and the current shared empty state isn't incorrect, just less nuanced — not worth the added query surface for this pass.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: `app/hoc-tap/page.tsx` fires `layThangSomNhatHocTap()`/`tinhStreak()` and, after clamping, `layLichSuThang()` as two separate `Promise.all` batches — a `BuoiHoc` row written between the two batches could leave the streak/earliest-month figures and the rendered month history momentarily inconsistent with each other.
+  evidence: Edge Case Hunter / Blind Hunter finding; low-probability in a single-user, single-session local app (AD-5), and the same class of unguarded-multi-read-consistency gap is already accepted for other stories' independent-`Promise.all`-reads patterns in this file.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: No error handling (try/catch or an `error.tsx` boundary) on the new read path (`layLichSuThang()`/`tinhStreak()`/`layThangSomNhatHocTap()`) — a Prisma failure while loading `/hoc-tap` throws uncaught inside the Server Component.
+  evidence: Edge Case Hunter finding; confirmed systemic and pre-existing — no module's read-side queries anywhere in the app (`app/chi-tieu/queries.ts`, `app/lich-trinh/queries.ts`, `app/thuc-don/queries.ts`) are wrapped in try/catch, and no `error.tsx`/`global-error.tsx` exists anywhere in `app/` — not introduced by this story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: When `layThangSomNhatHocTap()` returns `null` (no `BuoiHoc` at all yet), `app/hoc-tap/page.tsx`'s clamp only enforces the "never future" bound — an arbitrary past `?thang=` renders unclamped instead of snapping to the current month.
+  evidence: Edge Case Hunter finding; this is a byte-for-byte mirror of `app/chi-tieu/page.tsx`'s identical `thangSomNhat !== null` clamp shape (Story 5) — pre-existing, deliberately reused pattern, not a new gap.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: `tinhStreak()` compares `BuoiHoc.ngay` values via raw `.getTime()` against `layMocNgayVN()`-normalized lookback days, without re-normalizing the read rows itself — correct only as long as every row was written pre-normalized.
+  evidence: Edge Case Hunter finding; not reachable through any current write path, since `ghiBuoiHoc()` (Story 8, the only writer, AD-3) already always stamps `ngay` via `layMocNgayVN()` before insert — same class of "defense-in-depth gap, not reachable through any current write path" already accepted elsewhere in this file (e.g. `dinhDangBuoiHoc()`'s `kyNang` fallback).
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
+  summary: "Lịch sử Điểm số Bài test đánh giá theo thời gian cho Tiếng Anh" (part of CAP-12) — narrowed out of Story 9, which now covers only the Buổi học history/tổng thời lượng/streak-or-chart portion of CAP-12 for both Kỹ năng.
+  evidence: Per ARCHITECTURE-SPINE.md's Structural Seed, `BaiTestDanhGia` always attaches to a specific `Moc`, and a score is only ever entered at the point of trying to complete that Mốc (EXPERIENCE.md's milestone-gate note) — there is no free-floating test score. `Moc`/`LoTrinh` don't exist until Story 10, so no `BaiTestDanhGia` data can exist for Story 9 to show. Human confirmed: build the score-entry + score-history UI together in Story 10, at the same milestone-completion gate, rather than inventing an early/duplicate scoring flow in Story 9.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
   summary: Displaying the running tổng thời lượng per Kỹ năng on the `/hoc-tap` screen — narrowed out of Story 8, which now covers only CAP-11 (ghi Buổi học); the total/lịch sử/streak view is explicitly CAP-12's job (Story 9, "Xem tiến độ học tập").
   evidence: SPEC.md's own CAP split already separates "ghi" (CAP-11) from "xem tổng thời lượng/lịch sử" (CAP-12) — same ghi-vs-xem boundary already used between Story 3 (CAP-4, ghi Giao dịch) and Story 5 (CAP-7, xem báo cáo) in this project. Keeping the totals query/UI in Story 8 pushed the spec to ~2575 tokens; human chose to narrow rather than accept the size, and the cut also produces a cleaner CAP boundary, not just a smaller spec.

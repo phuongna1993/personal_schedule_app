@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { type KetQua, thanhCong, thatBai } from "@/lib/ketQua";
 import { layMocNgayVN } from "@/lib/ngayVn";
-import { type BuoiHocDaGhi, laKyNang, type KyNangEnum } from "./model";
+import {
+  type BuoiHocDaGhi,
+  dinhDangBuoiHoc,
+  laKyNang,
+  type KyNangEnum,
+} from "./model";
 
 /**
  * AD-3 — Server Actions là cổng GHI dữ liệu duy nhất của module Học tập.
@@ -121,24 +126,6 @@ function kiemTraBuoiHoc(duLieu: unknown): KetQua<BuoiHocDaKiemTra> {
     noiDung,
     thoiLuongPhut: tho.thoiLuongPhut as number,
   });
-}
-
-type BuoiHocHangPrisma = {
-  id: number;
-  kyNang: string;
-  noiDung: string;
-  thoiLuongPhut: number;
-  ngay: Date;
-};
-
-function dinhDangBuoiHoc(row: BuoiHocHangPrisma): BuoiHocDaGhi {
-  return {
-    id: row.id,
-    kyNang: laKyNang(row.kyNang) ? row.kyNang : "TiengAnh",
-    noiDung: row.noiDung,
-    thoiLuongPhut: row.thoiLuongPhut,
-    ngay: row.ngay,
-  };
 }
 
 /**
