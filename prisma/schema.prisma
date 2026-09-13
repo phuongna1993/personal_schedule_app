@@ -256,3 +256,39 @@ model ThucDonBe {
   @@unique([ngay, buoi])
   @@index([monAnId])
 }
+
+// ---------------------------------------------------------------------------
+// Module Học tập
+// ---------------------------------------------------------------------------
+
+/// Buổi học (Study Session) — một lần ghi log học cho một Kỹ năng (CAP-11,
+/// Story 8). Module Học tập sở hữu độc quyền model này (AD-1) — module khác
+/// không được đọc/ghi trực tiếp.
+///
+/// Story 8 chỉ hỗ trợ GHI (không có xem lịch sử/tổng thời lượng/streak — đó
+/// là CAP-12, Story 9; không có LoTrinh/Moc/BaiTestDanhGia — CAP-13, Story
+/// 10, chưa tồn tại).
+model BuoiHoc {
+  id Int @id @default(autoincrement())
+
+  /// "TiengAnh" | "AutomationTest". SQLite không hỗ trợ enum trong Prisma,
+  /// nên lưu String và ép ràng buộc ở tầng ứng dụng — xem
+  /// `KY_NANG`/`laKyNang()` trong `app/hoc-tap/model.ts` (mirror
+  /// `MUC_UU_TIEN`/`BUOI`/`loai`'s established String-enum pattern).
+  kyNang String
+
+  /// Nội dung đã học — bắt buộc, không được rỗng.
+  noiDung String
+
+  /// Thời lượng buổi học, tính bằng phút — số nguyên dương, chặn ở tầng ứng
+  /// dụng bằng biên Int32 (mirror `SO_TIEN_TOI_DA`, `app/chi-tieu/actions.ts`).
+  thoiLuongPhut Int
+
+  /// Mốc 00:00 giờ Asia/Ho_Chi_Minh của NGÀY GHI — luôn stamp bằng
+  /// `layMocNgayVN()` tại thời điểm tạo, KHÔNG có trường ngày cho người dùng
+  /// tự sửa (Boundaries: đây là một trong ba thao tác "ghi nhanh", không có
+  /// backdating UI).
+  ngay DateTime
+
+  @@index([kyNang])
+}

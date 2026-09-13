@@ -50,6 +50,34 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
   summary: Two near-simultaneous writes to the same slot (e.g. a note-save transition racing a dish-change transition on the same `(ngay, buoi)`) could clobber each other, since both go through a full-row `upsert` with no optimistic concurrency check.
   evidence: Blind Hunter review finding; low real-world likelihood in a single-user, single-session local app (AD-5), and the same class of unguarded-concurrent-write gap is already accepted for Stories 1-3's shared-`useTransition` findings in this file.
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: `dinhDangBuoiHoc()` (`app/hoc-tap/actions.ts`) silently falls back to `"TiengAnh"` when a `BuoiHoc` row's `kyNang` column fails `laKyNang()` instead of surfacing an error or logging a warning.
+  evidence: Blind Hunter review finding; not reachable through any current write path since `ghiBuoiHoc()` (the only writer, AD-3) already validates `kyNang` before insert — same class of "defense-in-depth gap, not reachable through any current write path" already accepted for `Task.ten`/`GiaoDich.soTien` elsewhere in this file.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: The thời lượng input's `e.target.value.replace(/\D/g, "")` handler in `app/hoc-tap/HocTapView.tsx` silently mangles a typed decimal (e.g. "30.5" becomes "305") instead of rejecting or truncating at the decimal point.
+  evidence: Edge Case Hunter / Blind Hunter finding; this is an exact, deliberate mirror of the identical `replace(/\D/g, "")` pattern already used for `soTien` inputs in `app/chi-tieu/ChiTieuView.tsx` (both are Int-only fields with no fractional unit) — pre-existing app-wide behavior, not a new regression.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: No component-level test coverage for the new `HocTapView`/`KyNangForm` client components in `app/hoc-tap/HocTapView.tsx` — only the underlying `ghiBuoiHoc()` Server Action is unit-tested.
+  evidence: Blind Hunter review finding; no component-test infra (jsdom/@testing-library) exists anywhere in the project, same accepted gap already logged for Story 1's and Story 7's client components — not unique to Story 8.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: In `ghiBuoiHoc()` (`app/hoc-tap/actions.ts`), if `revalidatePath()` throws after `prisma.buoiHoc.create()` has already committed, `boiCanhGhi()`'s catch reports `LOI_HE_THONG` even though the row was actually written, inviting an unnecessary resubmit.
+  evidence: Edge Case Hunter finding; this exact write-then-revalidate-in-the-same-try-block shape is used identically by every other module's create actions (`app/chi-tieu/actions.ts`, `app/thuc-don/actions.ts`) — a pre-existing, app-wide pattern, not introduced by this story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: `noiDung`'s empty-check in `kiemTraBuoiHoc()` only calls `.trim()`, so a string made entirely of zero-width characters (e.g. U+200B) passes as "non-empty" and gets stored as a visually-blank Buổi học.
+  evidence: Edge Case Hunter finding; the identical `.trim()`-only emptiness check is used for every free-text field across the app (`app/chi-tieu/actions.ts`'s `ten`/`ghiChu`, `app/thuc-don/actions.ts`'s `ten`) — pre-existing, systemic, not unique to Story 8.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: `KyNangForm` in `app/hoc-tap/HocTapView.tsx` has no guard against two near-simultaneous submits before `dangGui`/`disabled` takes effect, which could create two `BuoiHoc` rows for one intended save.
+  evidence: Blind Hunter / Edge Case Hunter finding; the same unguarded double-submit shape (disable-on-pending via `useTransition`, no explicit re-entrancy guard) is already the established pattern across every other module's forms (`MonAnCard`, `FormMonAn`, `NguoiLonSlot`, `BeSlot`) — pre-existing, not new to this story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/8-ghi-buoi-hoc.md`
+  summary: Displaying the running tổng thời lượng per Kỹ năng on the `/hoc-tap` screen — narrowed out of Story 8, which now covers only CAP-11 (ghi Buổi học); the total/lịch sử/streak view is explicitly CAP-12's job (Story 9, "Xem tiến độ học tập").
+  evidence: SPEC.md's own CAP split already separates "ghi" (CAP-11) from "xem tổng thời lượng/lịch sử" (CAP-12) — same ghi-vs-xem boundary already used between Story 3 (CAP-4, ghi Giao dịch) and Story 5 (CAP-7, xem báo cáo) in this project. Keeping the totals query/UI in Story 8 pushed the spec to ~2575 tokens; human chose to narrow rather than accept the size, and the cut also produces a cleaner CAP boundary, not just a smaller spec.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/7-len-thuc-don-ngay.md`
   summary: Allowing multiple Món ăn per meal slot (e.g. rice + stir-fry together for one bữa, matching the mock's comma-joined "Cơm, Bò xào thập cẩm" cell and the ARCHITECTURE-SPINE.md ERD's `NhomKhauPhan }o--o{ MonAn` many-to-many notation) — narrowed out of Story 7, which now assigns exactly one Món ăn per (ngày, bữa, Nhóm khẩu phần) slot.
   evidence: The multi-dish design (plus its knock-on effect of denormalizing the CAP-10 adjustment note across every dish-row of a slot) pushed the spec to ~3206 tokens, well over the 1600 target. Human chose Split [S] to narrow to single-dish-per-slot rather than accept the size, since it also simplifies the UI (single dropdown instead of multi-select) and removes the note-duplication design wrinkle entirely.

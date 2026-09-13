@@ -1160,6 +1160,28 @@ select {
   color: var(--ink-tertiary);
 }
 
+/* --------------------------------------------------------- học tập --- */
+/* Story 8 (CAP-11) reuses `.assign-grid`/`.assign-col` (Story 7's two-
+   independent-columns pattern) and `.task-form`/`.field-label`/`.note-field`/
+   `.amount-field`/`.form-actions`/`.btn`/`.field-error` as-is. The only new
+   rule is the inline "Đã lưu ✓" confirmation, using the `--success` token
+   already defined above (unused until now). */
+
+.saved-tag {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+/* Same visual treatment as `.amount-field .cur` (the "đ" currency suffix in
+   `app/chi-tieu/ChiTieuView.tsx`), under its own name — "cur" (currency)
+   would be a misleading class name for a duration unit like "phút". */
+.amount-field .unit-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-tertiary);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
