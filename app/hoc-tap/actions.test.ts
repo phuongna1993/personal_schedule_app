@@ -23,6 +23,16 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
     buoiHoc: {
       create: vi.fn(),
     },
+    moc: {
+      upsert: vi.fn(),
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    baiTestDanhGia: {
+      count: vi.fn(),
+      create: vi.fn(),
+    },
   },
   revalidatePathMock: vi.fn(),
 }));
@@ -30,7 +40,8 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
-const { ghiBuoiHoc } = await import("./actions");
+const { ghiBuoiHoc, hoanThanhMoc, ghiDiemBaiTest } = await import("./actions");
+const { biChanHoanThanhBoiGateDiem } = await import("./model");
 
 const BUOI_HOC_TIENG_ANH_HOP_LE = {
   kyNang: "TiengAnh",
@@ -64,6 +75,24 @@ beforeEach(() => {
     async ({ data }: { data: Record<string, unknown> }) =>
       hangBuoiHocPrisma(data),
   );
+
+  // Mặc định cho `damBaoMocDaKhoiTao()` — được gọi ngầm ở đầu MỌI action Lộ
+  // trình (CAP-13). Giá trị `upsert` trả về không được action nào đọc lại
+  // (chỉ dùng để seed), nên một hình dạng tối thiểu là đủ cho mọi test dưới
+  // đây không cần tự mock lại riêng.
+  prismaMock.moc.upsert.mockImplementation(
+    async ({ create }: { create: { kyNang: string; thuTu: number } }) => ({
+      id: create.thuTu,
+      kyNang: create.kyNang,
+      thuTu: create.thuTu,
+      ngayHoanThanh: null,
+    }),
+  );
+  // Mặc định: hàng khớp `where` (đường thường — hàng chưa Hoàn thành tại
+  // thời điểm ghi). Test riêng cho race double-completion tự override thành
+  // `{ count: 0 }` để mô phỏng "hàng đã bị một lượt gọi khác ghi mất trước".
+  prismaMock.moc.updateMany.mockResolvedValue({ count: 1 });
+  prismaMock.baiTestDanhGia.count.mockResolvedValue(0);
 });
 
 describe("ghiBuoiHoc — Log a session for Tiếng Anh", () => {
@@ -331,5 +360,338 @@ describe("ghiBuoiHoc — lỗi hệ thống", () => {
     if (ketQua.ok) throw new Error("unreachable");
     expect(ketQua.error.code).toBe("LOI_HE_THONG");
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Unit test cho Lộ trình & Mốc (CAP-13, Story 10) — `hoanThanhMoc()`,
+ * `ghiDiemBaiTest()`. Trọng tâm: I/O & Edge-Case Matrix của story
+ * (10-lo-trinh-va-moc.md).
+ *
+ * `hoanThanhMoc` là MỘT action DUY NHẤT cho cả hai Kỹ năng — mọi test dưới
+ * đây gọi đúng một hàm này cho cả AutomationTest lẫn TiengAnh, không có
+ * biến thể riêng theo Kỹ năng nào khác được import (Acceptance Criteria:
+ * "grepped for hoanThanhMoc, exactly one exported function").
+ */
+describe("hoanThanhMoc — Automation Test (không cần Bài test)", () => {
+  it("hoàn thành Mốc hiện tại của Automation Test dù chưa có BaiTestDanhGia nào (gate chỉ áp cho Tiếng Anh)", async () => {
+    const mocHienTai = {
+      id: 10,
+      kyNang: "AutomationTest",
+      thuTu: 1,
+      ngayHoanThanh: null,
+    };
+    prismaMock.moc.findUnique.mockResolvedValue(mocHienTai);
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 10, thuTu: 1 });
+
+    const ketQua = await hoanThanhMoc(10);
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data).toEqual({ mocId: 10 });
+    // Gate chỉ chạm baiTestDanhGia khi kyNang === "TiengAnh" — Automation
+    // Test không bao giờ chạm nhánh kiểm tra này (Acceptance Criteria).
+    expect(prismaMock.baiTestDanhGia.count).not.toHaveBeenCalled();
+    expect(prismaMock.moc.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, ngayHoanThanh: null },
+      data: { ngayHoanThanh: expect.any(Date) },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/hoc-tap");
+  });
+});
+
+describe("hoanThanhMoc — Tiếng Anh (gate Bài test đánh giá)", () => {
+  it("chặn hoàn thành Mốc Tiếng Anh khi chưa có Điểm số Bài test nào gắn với Mốc đó", async () => {
+    const moc = { id: 20, kyNang: "TiengAnh", thuTu: 1, ngayHoanThanh: null };
+    prismaMock.moc.findUnique.mockResolvedValue(moc);
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 20, thuTu: 1 });
+    prismaMock.baiTestDanhGia.count.mockResolvedValue(0);
+
+    const ketQua = await hoanThanhMoc(20);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("CHUA_CO_DIEM_BAI_TEST");
+    expect(prismaMock.moc.updateMany).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("ghiDiemBaiTest() rồi hoanThanhMoc() thành công — gate mở ra sau khi có Điểm số", async () => {
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 21, thuTu: 1 });
+    prismaMock.baiTestDanhGia.create.mockResolvedValue({
+      id: 1,
+      mocId: 21,
+      diemSo: "8.0",
+      ngay: new Date(),
+    });
+
+    const ketQuaDiem = await ghiDiemBaiTest("8.0");
+    expect(ketQuaDiem.ok).toBe(true);
+
+    const moc = { id: 21, kyNang: "TiengAnh", thuTu: 1, ngayHoanThanh: null };
+    prismaMock.moc.findUnique.mockResolvedValue(moc);
+    prismaMock.baiTestDanhGia.count.mockResolvedValue(1);
+
+    const ketQua = await hoanThanhMoc(21);
+
+    expect(ketQua.ok).toBe(true);
+    expect(prismaMock.moc.updateMany).toHaveBeenCalledWith({
+      where: { id: 21, ngayHoanThanh: null },
+      data: { ngayHoanThanh: expect.any(Date) },
+    });
+  });
+});
+
+describe("hoanThanhMoc — Complete out of sequence", () => {
+  it("chặn hoàn thành một Mốc không phải Mốc hiện tại (tương lai)", async () => {
+    const mocTuongLai = {
+      id: 30,
+      kyNang: "AutomationTest",
+      thuTu: 3,
+      ngayHoanThanh: null,
+    };
+    prismaMock.moc.findUnique.mockResolvedValue(mocTuongLai);
+    // Mốc hiện tại thực sự là một id khác (thuTu nhỏ hơn 3).
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 28, thuTu: 1 });
+
+    const ketQua = await hoanThanhMoc(30);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MOC_KHONG_PHAI_VI_TRI_HIEN_TAI");
+    expect(prismaMock.moc.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("hoanThanhMoc — Try to complete an already-completed Mốc twice", () => {
+  it("chặn hoàn thành một Mốc đã Hoàn thành — không có undo", async () => {
+    const mocDaXong = {
+      id: 31,
+      kyNang: "AutomationTest",
+      thuTu: 1,
+      ngayHoanThanh: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    prismaMock.moc.findUnique.mockResolvedValue(mocDaXong);
+
+    const ketQua = await hoanThanhMoc(31);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MOC_DA_HOAN_THANH");
+    // Không cần đi xa tới layMocHienTai — từ chối ngay từ bước đọc Mốc.
+    expect(prismaMock.moc.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.moc.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("đóng race double-click: hai lượt gọi gần như đồng thời cùng vượt qua check ban đầu, nhưng chỉ MỘT lượt ghi thắng — lượt còn lại nhận MOC_DA_HOAN_THANH từ chính updateMany, không giả định thành công", async () => {
+    // Cả hai lượt gọi đều đọc thấy Mốc CHƯA Hoàn thành (race thật: check này
+    // không đủ để chặn, phải chặn ở chính lệnh ghi — đây là lý do #3 đổi
+    // sang `updateMany` + kiểm tra `count`).
+    const mocChuaXong = {
+      id: 32,
+      kyNang: "AutomationTest",
+      thuTu: 1,
+      ngayHoanThanh: null,
+    };
+    prismaMock.moc.findUnique.mockResolvedValue(mocChuaXong);
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 32, thuTu: 1 });
+    // Lượt ghi đầu tiên khớp đúng 1 hàng; lượt thứ hai không còn khớp hàng
+    // nào nữa (hàng đã bị lượt đầu đổi `ngayHoanThanh` khỏi `null`).
+    prismaMock.moc.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const [lanMot, lanHai] = await Promise.all([
+      hoanThanhMoc(32),
+      hoanThanhMoc(32),
+    ]);
+
+    expect(lanMot.ok).toBe(true);
+    expect(lanHai.ok).toBe(false);
+    if (lanHai.ok) throw new Error("unreachable");
+    expect(lanHai.error.code).toBe("MOC_DA_HOAN_THANH");
+    expect(prismaMock.moc.updateMany).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("hoanThanhMoc — payload thô/không tồn tại", () => {
+  it("chặn mocId không tồn tại trong DB", async () => {
+    prismaMock.moc.findUnique.mockResolvedValue(null);
+
+    const ketQua = await hoanThanhMoc(999);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("MOC_KHONG_TON_TAI");
+  });
+
+  it.each([null, undefined, "10", 1.5, {}, [], true])(
+    "chặn mocId %o trước khi chạm Prisma",
+    async (giaTri) => {
+      const ketQua = await hoanThanhMoc(giaTri as never);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("MOC_KHONG_HOP_LE");
+      expect(prismaMock.moc.findUnique).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("hoanThanhMoc — lỗi hệ thống", () => {
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.moc.findUnique.mockRejectedValue(
+      new Error("SQLITE_BUSY: database is locked"),
+    );
+
+    const ketQua = await hoanThanhMoc(1);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ghiDiemBaiTest — luôn nhắm tới Mốc hiện tại của Tiếng Anh", () => {
+  it("không nhận tham số kyNang — luôn gọi layMocHienTai với 'TiengAnh'", async () => {
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 41, thuTu: 2 });
+    prismaMock.baiTestDanhGia.create.mockResolvedValue({
+      id: 1,
+      mocId: 41,
+      diemSo: "8.0",
+      ngay: new Date(),
+    });
+
+    await ghiDiemBaiTest("8.0");
+
+    expect(prismaMock.moc.findFirst).toHaveBeenCalledWith({
+      where: { kyNang: "TiengAnh", ngayHoanThanh: null },
+      orderBy: { thuTu: "asc" },
+      select: { id: true, thuTu: true },
+    });
+    expect(prismaMock.baiTestDanhGia.create).toHaveBeenCalledWith({
+      data: { mocId: 41, diemSo: "8.0", ngay: expect.any(Date) },
+    });
+  });
+
+  it("trả lỗi khi Lộ trình Tiếng Anh đã hoàn thành hết (không còn Mốc hiện tại)", async () => {
+    prismaMock.moc.findFirst.mockResolvedValue(null);
+
+    const ketQua = await ghiDiemBaiTest("9.0");
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("KHONG_CO_MOC_HIEN_TAI");
+    expect(prismaMock.baiTestDanhGia.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("ghiDiemBaiTest — Two Điểm số entered for the same Mốc", () => {
+  it("cho phép ghi nhiều Điểm số trước khi hoàn thành — cả hai hàng đều tồn tại, không ghi đè", async () => {
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 40, thuTu: 1 });
+    let demIdDiem = 0;
+    prismaMock.baiTestDanhGia.create.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        id: ++demIdDiem,
+        ...data,
+      }),
+    );
+
+    const lanMot = await ghiDiemBaiTest("6.5");
+    const lanHai = await ghiDiemBaiTest("7.0");
+
+    expect(lanMot.ok).toBe(true);
+    expect(lanHai.ok).toBe(true);
+    if (!lanMot.ok || !lanHai.ok) throw new Error("unreachable");
+    expect(lanMot.data.id).not.toBe(lanHai.data.id);
+    expect(prismaMock.baiTestDanhGia.create).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ghiDiemBaiTest — Điểm số rỗng/quá dài", () => {
+  it("chặn Điểm số rỗng hoặc chỉ khoảng trắng, không tạo hàng nào", async () => {
+    const rong = await ghiDiemBaiTest("");
+    expect(rong.ok).toBe(false);
+    if (rong.ok) throw new Error("unreachable");
+    expect(rong.error.code).toBe("DIEM_SO_TRONG");
+    expect(rong.error.field).toBe("diemSo");
+
+    const trang = await ghiDiemBaiTest("   \n\t ");
+    expect(trang.ok).toBe(false);
+    if (trang.ok) throw new Error("unreachable");
+    expect(trang.error.code).toBe("DIEM_SO_TRONG");
+
+    expect(prismaMock.baiTestDanhGia.create).not.toHaveBeenCalled();
+  });
+
+  it("chặn Điểm số vượt quá 100 ký tự, chấp nhận đúng 100 ký tự", async () => {
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 50, thuTu: 1 });
+    prismaMock.baiTestDanhGia.create.mockResolvedValue({
+      id: 1,
+      mocId: 50,
+      diemSo: "a".repeat(100),
+      ngay: new Date(),
+    });
+
+    const quaDai = await ghiDiemBaiTest("a".repeat(101));
+    expect(quaDai.ok).toBe(false);
+    if (quaDai.ok) throw new Error("unreachable");
+    expect(quaDai.error.code).toBe("DIEM_SO_QUA_DAI");
+    expect(prismaMock.baiTestDanhGia.create).not.toHaveBeenCalled();
+
+    const dungMuc = await ghiDiemBaiTest("a".repeat(100));
+    expect(dungMuc.ok).toBe(true);
+  });
+
+  it.each([null, undefined, 42, {}, [], true])(
+    "chặn diemSo %o (không phải chuỗi) trước khi chạm Prisma",
+    async (giaTri) => {
+      const ketQua = await ghiDiemBaiTest(giaTri as never);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("DIEM_SO_TRONG");
+      expect(prismaMock.baiTestDanhGia.create).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("ghiDiemBaiTest — lỗi hệ thống", () => {
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.moc.findFirst.mockResolvedValue({ id: 60, thuTu: 1 });
+    prismaMock.baiTestDanhGia.create.mockRejectedValue(
+      new Error("SQLITE_BUSY: database is locked"),
+    );
+
+    const ketQua = await ghiDiemBaiTest("8.0");
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `biChanHoanThanhBoiGateDiem()` (`app/hoc-tap/model.ts`) — hàm THUẦN đứng
+ * sau nút "Hoàn thành Mốc" bị vô hiệu hoá ở `HocTapView.tsx`. Đây là bất
+ * biến quan trọng nhất của story (gate CHỈ áp cho Tiếng Anh); test này tồn
+ * tại RIÊNG vì repo không có hạ tầng test component nào để bắt lỗi nếu logic
+ * này bị đơn giản hoá nhầm ở tầng JSX (ví dụ lỡ bỏ điều kiện kyNang, khoá
+ * vĩnh viễn nút Automation Test — không action test nào ở trên chạm được vì
+ * `hoanThanhMoc()` được gọi trực tiếp, bỏ qua hoàn toàn logic UI).
+ */
+describe("biChanHoanThanhBoiGateDiem", () => {
+  it("Automation Test: luôn false, bất kể coDiemBaiTest", () => {
+    expect(biChanHoanThanhBoiGateDiem("AutomationTest", false)).toBe(false);
+    expect(biChanHoanThanhBoiGateDiem("AutomationTest", true)).toBe(false);
+  });
+
+  it("Tiếng Anh: mirror đúng coDiemBaiTest (đảo dấu — chặn khi CHƯA có điểm)", () => {
+    expect(biChanHoanThanhBoiGateDiem("TiengAnh", false)).toBe(true);
+    expect(biChanHoanThanhBoiGateDiem("TiengAnh", true)).toBe(false);
   });
 });

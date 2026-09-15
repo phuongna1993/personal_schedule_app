@@ -74,6 +74,30 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
   summary: `KyNangForm` in `app/hoc-tap/HocTapView.tsx` has no guard against two near-simultaneous submits before `dangGui`/`disabled` takes effect, which could create two `BuoiHoc` rows for one intended save.
   evidence: Blind Hunter / Edge Case Hunter finding; the same unguarded double-submit shape (disable-on-pending via `useTransition`, no explicit re-entrancy guard) is already the established pattern across every other module's forms (`MonAnCard`, `FormMonAn`, `NguoiLonSlot`, `BeSlot`) — pre-existing, not new to this story.
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: Several accessibility gaps in the new Lộ trình UI (`app/hoc-tap/HocTapView.tsx`): no `aria-current` on the current-Mốc card, no `aria-disabled`/accessible label on dimmed future Mốc rows, the completed-Mốc checkmark has no text alternative, the Điểm số input has no `aria-describedby` linking it to its `field-error`, and focus isn't programmatically restored to the new current-Mốc card after a completion re-render.
+  evidence: Blind Hunter review finding; same class of gap as the already-accepted "Accessibility Floor" backlog opened in Story 1 and added to by Stories 3/7 (category chips, error-text linkage) — a whole-app, pre-existing, explicitly-deferred concern, not unique to this story. Better tackled as one pass across all screens once more of them exist (per Story 1's original deferral reasoning) than piecemeal per story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: No overall progress indicator (e.g. "2/7 Mốc hoàn thành") in `LoTrinhCot` even though the count is trivially available from already-loaded data.
+  evidence: Blind Hunter review finding; a real, cheap-ish UX enhancement but not required by any Acceptance Criterion or I/O matrix row — pure polish, not core correctness.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: `BaiTestDanhGia.mocId`'s foreign key isn't DB-restricted to only `Moc` rows where `kyNang = "TiengAnh"` — the gate is purely application-level in `ghiDiemBaiTest()` (which always hardcodes `layMocHienTai("TiengAnh")`), so nothing at the schema layer stops a future code path or manual DB edit from attaching a score to an Automation Test Mốc.
+  evidence: Edge Case Hunter / Blind Hunter finding; not reachable through any current write path since `ghiDiemBaiTest()` is the only writer (AD-3) and never accepts a `kyNang` parameter — same class of "defense-in-depth gap, not reachable through any current write path" already accepted repeatedly elsewhere in this file (e.g. `Task.ten`, `dinhDangBuoiHoc()`'s `kyNang` fallback).
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: `hoanThanhMoc()`'s defensive `laKyNang(moc.kyNang)` branch (an unexpected `kyNang` value read back from the DB) has no test exercising it — dead code as far as the suite can currently prove.
+  evidence: Blind Hunter finding; not reachable through any current write path, since every `Moc` row is created exclusively by `damBaoMocDaKhoiTao()`'s fixed, hardcoded `(kyNang, thuTu)` pairs — same class of accepted defense-in-depth gap as above.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: A narrow race between `ghiDiemBaiTest()` resolving "the current Tiếng Anh Mốc" and its `BaiTestDanhGia.create()` landing, versus a concurrent `hoanThanhMoc()` call advancing that same Mốc in between — the score could end up attached to a Mốc that completed a moment earlier instead of the new current one. Separately, the "Lưu điểm số" and "Hoàn thành Mốc" buttons use independent pending flags, so both are clickable at once.
+  evidence: Edge Case Hunter finding; requires precise timing in what's a single-user, single-session local app (AD-5), and even if triggered the consequence is harmless (a valid historical score row attached to the wrong-by-one Mốc, not data loss or corruption) — same low-priority class as other unguarded-concurrent-write gaps already accepted for Stories 1-9.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/10-lo-trinh-va-moc.md`
+  summary: A dedicated "lịch sử Điểm số Bài test đánh giá" view (all `BaiTestDanhGia` entries across all Mốc, newest first) for Tiếng Anh — narrowed out of Story 10, which now only shows/uses a Mốc's score inline (enough to drive the completion gate), not a full history list. This is the second half of CAP-12's original scope, originally deferred from Story 9 to Story 10.
+  evidence: Keeping `layLichSuDiemBaiTest()` and its UI section in Story 10 pushed the spec to ~3777 tokens — the largest yet, on top of already being the highest-risk-logic story (`spec_checkpoint=true` in `stories.yaml`). Human chose to split rather than accept the size, keeping the gate/seed/roadmap logic (which is tightly coupled and risky) isolated from the history-viewing UI (which is not). A future story should add `layLichSuDiemBaiTest()` (all `BaiTestDanhGia` for Tiếng Anh, newest first) plus a history list in the UI — no new schema needed, `BaiTestDanhGia` already supports it.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/9-xem-tien-do-hoc-tap.md`
   summary: No distinct empty state for "this Kỹ năng has never had a single Buổi học" vs. "just no sessions in the currently-viewed month" — both render the same streak-0/total-0/empty-list state in `TienDoCot` (`app/hoc-tap/HocTapView.tsx`).
   evidence: Blind Hunter review finding; would need a new per-Kỹ-năng "has any session ever" query beyond what this story's Code Map scoped, and the current shared empty state isn't incorrect, just less nuanced — not worth the added query surface for this pass.

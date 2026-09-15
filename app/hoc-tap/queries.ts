@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 import {
   layMocDauThangKeTiepVN,
@@ -5,7 +6,15 @@ import {
   layMocNgayVN,
   themNgay,
 } from "@/lib/ngayVn";
-import { type BuoiHocDaGhi, dinhDangBuoiHoc, type KyNangEnum } from "./model";
+import {
+  type BuoiHocDaGhi,
+  dinhDangBuoiHoc,
+  KY_NANG,
+  type KyNangEnum,
+  type LoTrinhDuLieu,
+  type MocDuLieu,
+  MOC_THEO_KY_NANG,
+} from "./model";
 
 /**
  * AD-1 — Module Học tập sở hữu độc quyền model `BuoiHoc`, kể cả đường ĐỌC.
@@ -108,4 +117,121 @@ export async function tinhStreak(kyNang: KyNangEnum): Promise<number> {
   }
 
   return streak;
+}
+
+// ---------------------------------------------------------------------------
+// Lộ trình & Mốc (CAP-13, Story 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lazy-seed toàn bộ 10 hàng `Moc` cố định (3 TiengAnh + 7 AutomationTest),
+ * nếu chưa tồn tại — mirror `taoLichTrinhNgayTuMau()`'s "AD-3 ngoại lệ 2"
+ * lazy-init convention (`app/lich-trinh/actions.ts`): một INSERT xảy ra
+ * NGẦM trong đường đọc, không phải một cổng ghi công khai cho UI gọi trực
+ * tiếp.
+ *
+ * PHẢI gọi trước MỌI lần đọc dữ liệu Lộ trình (`layMocHienTai`, `layLoTrinh`)
+ * — kể cả lần đọc đầu tiên khi bảng `Moc` còn rỗng (Boundaries: "First
+ * visit, no Mốc seeded yet"). `upsert` trên khoá `@@unique([kyNang, thuTu])`
+ * là idempotent — gọi lại nhiều lần không bao giờ tạo hàng trùng.
+ *
+ * Bọc trong React `cache()`: cả `layMocHienTai()` lẫn `layLoTrinh()` đều gọi
+ * hàm này, và `page.tsx` gọi `layLoTrinh()` hai lần (một cho mỗi Kỹ năng)
+ * trong CÙNG một request — không có `cache()`, một lượt xem trang bình
+ * thường sẽ bắn lại toàn bộ 10 lệnh upsert nhiều lần một cách dư thừa.
+ * `cache()` memoize theo request (kể cả một Server Action), nên tất cả các
+ * lệnh gọi trong cùng request chia sẻ đúng MỘT promise.
+ */
+export const damBaoMocDaKhoiTao = cache(async (): Promise<void> => {
+  const slot: { kyNang: KyNangEnum; thuTu: number }[] = [];
+  for (const kyNang of KY_NANG) {
+    for (const dinhNghia of MOC_THEO_KY_NANG[kyNang]) {
+      slot.push({ kyNang, thuTu: dinhNghia.thuTu });
+    }
+  }
+
+  await Promise.all(
+    slot.map(({ kyNang, thuTu }) =>
+      prisma.moc.upsert({
+        where: { kyNang_thuTu: { kyNang, thuTu } },
+        create: { kyNang, thuTu },
+        update: {},
+      }),
+    ),
+  );
+});
+
+/**
+ * "Vị trí hiện tại" trên Lộ trình của một Kỹ năng (AD-2) — KHÔNG có cột con
+ * trỏ vật lý riêng, luôn SUY RA bằng truy vấn: Mốc có `thuTu` nhỏ nhất mà
+ * `ngayHoanThanh` còn `null`. Trả `null` khi mọi Mốc của Kỹ năng này đã Hoàn
+ * thành (terminal state).
+ *
+ * MỌI nơi cần biết vị trí hiện tại (đây, `layLoTrinh()`, `hoanThanhMoc()`
+ * trong `actions.ts`) phải gọi hàm DUY NHẤT này — không tự suy luận riêng lẻ
+ * (mirror AD-2's yêu cầu về `layMocHienTai()` trong ARCHITECTURE-SPINE.md).
+ */
+export async function layMocHienTai(
+  kyNang: KyNangEnum,
+): Promise<{ id: number; thuTu: number } | null> {
+  await damBaoMocDaKhoiTao();
+
+  return prisma.moc.findFirst({
+    where: { kyNang, ngayHoanThanh: null },
+    orderBy: { thuTu: "asc" },
+    select: { id: true, thuTu: true },
+  });
+}
+
+/**
+ * Toàn bộ Lộ trình đã sắp xếp của một Kỹ năng (CAP-13) — merge tiêu đề cố
+ * định (`MOC_THEO_KY_NANG`) + trạng thái Hoàn thành từ DB. Với Kỹ năng Tiếng
+ * Anh, đánh dấu thêm Mốc HIỆN TẠI đã có Điểm số Bài test hay chưa
+ * (`coDiemBaiTest`) — CHỈ để gate nút "Hoàn thành Mốc" ở UI, KHÔNG trả toàn
+ * bộ lịch sử Điểm số của mọi Mốc (deferred — Boundaries: "no dedicated Điểm
+ * số history view across all BaiTestDanhGia rows").
+ *
+ * "Mốc hiện tại" ở đây LUÔN đến từ `layMocHienTai()` — không tự
+ * `rows.find(...)` lại một lần suy luận thứ hai. Dù về mặt toán học hai cách
+ * tính cho cùng kết quả (cùng lọc `kyNang`, cùng sắp `thuTu`), đây là bất
+ * biến quan trọng nhất của story ("vị trí hiện tại luôn suy ra qua ĐÚNG MỘT
+ * hàm") nên không được phép có một bản sao logic thứ hai, dù tương đương,
+ * ở nơi khác (AD-2).
+ */
+export async function layLoTrinh(kyNang: KyNangEnum): Promise<LoTrinhDuLieu> {
+  await damBaoMocDaKhoiTao();
+
+  const [rows, mocHienTai] = await Promise.all([
+    prisma.moc.findMany({
+      where: { kyNang },
+      orderBy: { thuTu: "asc" },
+    }),
+    layMocHienTai(kyNang),
+  ]);
+
+  const tenTheoThuTu = new Map(
+    MOC_THEO_KY_NANG[kyNang].map((d) => [d.thuTu, d.ten]),
+  );
+
+  let coDiemBaiTestMocHienTai = false;
+  if (kyNang === "TiengAnh" && mocHienTai) {
+    const soLuong = await prisma.baiTestDanhGia.count({
+      where: { mocId: mocHienTai.id },
+    });
+    coDiemBaiTestMocHienTai = soLuong > 0;
+  }
+
+  const moc: MocDuLieu[] = rows.map((row) => ({
+    id: row.id,
+    kyNang,
+    thuTu: row.thuTu,
+    ten: tenTheoThuTu.get(row.thuTu) ?? `Mốc ${row.thuTu}`,
+    ngayHoanThanh: row.ngayHoanThanh,
+    coDiemBaiTest:
+      mocHienTai !== null && row.id === mocHienTai.id
+        ? coDiemBaiTestMocHienTai
+        : false,
+  }));
+
+  return { kyNang, moc, mocHienTaiId: mocHienTai?.id ?? null };
 }

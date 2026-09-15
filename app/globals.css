@@ -1182,6 +1182,31 @@ select {
   color: var(--ink-tertiary);
 }
 
+/* --------------------------------------------------- lộ trình & mốc --- */
+/* Story 10 (CAP-13). `.task-row`/`.empty-txt`/`.field-label`/`.note-field`/
+   `.task-form.inline`/`.form-actions`/`.btn`/`.field-error`/`.saved-tag` are
+   all reused as-is (Code Map). Only two new rules: the dimmed treatment for
+   a not-yet-reachable future Mốc (nothing existing fits — `.dish-card.dim`
+   is grid-card shaped, not a `.task-row`), and the current-Mốc card wrapper. */
+
+.task-row.moc-future {
+  opacity: 0.5;
+}
+
+.moc-current {
+  margin: var(--s-3) 0 var(--s-2);
+  padding: 14px 16px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+}
+
+.moc-current .tname {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 2px 0 0;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

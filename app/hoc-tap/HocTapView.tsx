@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import type { LoiAction } from "@/lib/ketQua";
 import { formatNgayVN } from "@/lib/ngayVn";
-import { ghiBuoiHoc } from "./actions";
+import { ghiBuoiHoc, ghiDiemBaiTest, hoanThanhMoc } from "./actions";
 import {
+  biChanHoanThanhBoiGateDiem,
   KY_NANG,
   type KyNangEnum,
+  type LoTrinhDuLieu,
+  type MocDuLieu,
   NHAN_KY_NANG,
   type TienDoKyNang,
 } from "./model";
@@ -52,11 +55,13 @@ function formatPhut(soPhut: number): string {
  */
 export default function HocTapView({
   tienDo,
+  loTrinh,
   nhanThang,
   hrefThangTruoc,
   hrefThangSau,
 }: {
   tienDo: Record<KyNangEnum, TienDoKyNang>;
+  loTrinh: Record<KyNangEnum, LoTrinhDuLieu>;
   nhanThang: string;
   hrefThangTruoc: string | null;
   hrefThangSau: string | null;
@@ -125,6 +130,24 @@ export default function HocTapView({
         <div className="assign-grid">
           {KY_NANG.map((kyNang) => (
             <TienDoCot key={kyNang} kyNang={kyNang} tienDo={tienDo[kyNang]} />
+          ))}
+        </div>
+      </section>
+
+      <section className="card" aria-labelledby="tieu-de-lo-trinh">
+        <h2 id="tieu-de-lo-trinh">Lộ trình học tập</h2>
+        <p className="sub">
+          Vị trí hiện tại trên Lộ trình của từng Kỹ năng — đánh dấu Hoàn thành
+          Mốc để chuyển sang Mốc kế tiếp
+        </p>
+
+        <div className="assign-grid">
+          {KY_NANG.map((kyNang) => (
+            <LoTrinhCot
+              key={kyNang}
+              kyNang={kyNang}
+              loTrinh={loTrinh[kyNang]}
+            />
           ))}
         </div>
       </section>
@@ -291,6 +314,203 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
           ) : null}
         </div>
       </form>
+    </div>
+  );
+}
+
+/**
+ * Một cột Lộ trình của một Kỹ năng (CAP-13) — danh sách Mốc đã Hoàn thành
+ * (viewable), thẻ Mốc HIỆN TẠI (`MocHienTaiCard`), rồi các Mốc CÒN LẠI hiển
+ * thị mờ (chưa tới lượt, không tương tác được). Không có history list Điểm
+ * số ở đây (deferred, xem `deferred-work.md` qua story's Boundaries).
+ */
+function LoTrinhCot({
+  kyNang,
+  loTrinh,
+}: {
+  kyNang: KyNangEnum;
+  loTrinh: LoTrinhDuLieu;
+}) {
+  // Type predicate: sau `.filter`, `m.ngayHoanThanh` hẹp đúng về `Date` (thay
+  // vì `Date | null`) cho `formatNgayVN()` dưới đây, không cần ép kiểu rời.
+  const mocDaXong = loTrinh.moc.filter(
+    (m): m is MocDuLieu & { ngayHoanThanh: Date } => m.ngayHoanThanh !== null,
+  );
+  const mocHienTai =
+    loTrinh.moc.find((m) => m.id === loTrinh.mocHienTaiId) ?? null;
+  const mocConLai = loTrinh.moc.filter(
+    (m) => m.ngayHoanThanh === null && m.id !== loTrinh.mocHienTaiId,
+  );
+
+  return (
+    <div className="assign-col">
+      <h3>{NHAN_KY_NANG[kyNang]}</h3>
+      <p className="group-sub">Lộ trình {NHAN_KY_NANG[kyNang]}</p>
+
+      {mocDaXong.map((m) => (
+        <div className="task-row" key={m.id}>
+          <span aria-hidden="true">✓</span>
+          <span className="ttime wide">{formatNgayVN(m.ngayHoanThanh)}</span>
+          <span className="tname">{m.ten}</span>
+        </div>
+      ))}
+
+      {mocHienTai ? (
+        // `key` buộc React remount toàn bộ card (kể cả state Điểm số/lỗi cục
+        // bộ bên trong) mỗi khi Mốc hiện tại đổi — sau khi Hoàn thành một
+        // Mốc, ô nhập Điểm số của Mốc kế tiếp phải bắt đầu trống, không kế
+        // thừa state của Mốc vừa xong.
+        <MocHienTaiCard key={mocHienTai.id} kyNang={kyNang} moc={mocHienTai} />
+      ) : (
+        // Terminal state — mọi Mốc của Kỹ năng này đã Hoàn thành, không còn
+        // thẻ Mốc hiện tại nào để hiển thị (Boundaries).
+        <p className="empty-txt">Đã hoàn thành Lộ trình.</p>
+      )}
+
+      {mocConLai.map((m) => (
+        <div className="task-row moc-future" key={m.id}>
+          <span className="tname">{m.ten}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Thẻ Mốc hiện tại — nút "Hoàn thành Mốc" cho cả hai Kỹ năng; riêng Tiếng
+ * Anh thêm ô nhập Điểm số Bài test đánh giá TẠI CHỖ (không mở modal riêng,
+ * EXPERIENCE.md's Milestone marker pattern) và nút bị vô hiệu hoá cho tới
+ * khi Mốc này đã có Điểm số (`moc.coDiemBaiTest`).
+ */
+function MocHienTaiCard({
+  kyNang,
+  moc,
+}: {
+  kyNang: KyNangEnum;
+  moc: MocDuLieu;
+}) {
+  const idForm = useId();
+
+  const [diemSo, setDiemSo] = useState("");
+  const [loiDiem, setLoiDiem] = useState<LoiAction | null>(null);
+  const [daLuuDiem, setDaLuuDiem] = useState(false);
+  const [dangGuiDiem, batDauDiem] = useTransition();
+
+  const [loi, setLoi] = useState<LoiAction | null>(null);
+  const [dangGui, batDau] = useTransition();
+
+  function guiDiem(suKien: React.FormEvent<HTMLFormElement>) {
+    suKien.preventDefault();
+    setLoiDiem(null);
+    setDaLuuDiem(false);
+
+    batDauDiem(async () => {
+      try {
+        const ketQua = await ghiDiemBaiTest(diemSo);
+        if (ketQua.ok) {
+          setDiemSo("");
+          setDaLuuDiem(true);
+        } else {
+          setLoiDiem(ketQua.error);
+        }
+      } catch (loiGoi) {
+        console.error("[hoc-tap] ghiDiemBaiTest thất bại:", loiGoi);
+        setLoiDiem(LOI_KET_NOI);
+      }
+    });
+  }
+
+  function guiHoanThanh() {
+    setLoi(null);
+
+    batDau(async () => {
+      try {
+        const ketQua = await hoanThanhMoc(moc.id);
+        if (!ketQua.ok) {
+          setLoi(ketQua.error);
+        }
+        // Thành công: `revalidatePath` trong action re-render `page.tsx` với
+        // Mốc hiện tại mới — không cần cập nhật state cục bộ nào thêm ở đây.
+      } catch (loiGoi) {
+        console.error("[hoc-tap] hoanThanhMoc thất bại:", loiGoi);
+        setLoi(LOI_KET_NOI);
+      }
+    });
+  }
+
+  const biChanBoiGateDiem = biChanHoanThanhBoiGateDiem(
+    kyNang,
+    moc.coDiemBaiTest,
+  );
+
+  return (
+    <div className="moc-current">
+      <p className="field-label">Mốc hiện tại</p>
+      <p className="tname">{moc.ten}</p>
+
+      {kyNang === "TiengAnh" ? (
+        <form className="task-form inline" onSubmit={guiDiem} noValidate>
+          <div id={`${idForm}-nhan-diem`} className="field-label">
+            Điểm số bài test
+          </div>
+          <input
+            className="note-field"
+            type="text"
+            aria-labelledby={`${idForm}-nhan-diem`}
+            aria-invalid={loiDiem?.field === "diemSo" || undefined}
+            maxLength={100}
+            value={diemSo}
+            onChange={(e) => {
+              setDaLuuDiem(false);
+              // Reset lỗi validation cũ NGAY khi người dùng bắt đầu sửa —
+              // để lại `loiDiem` cũ trong lúc gõ sẽ hiện một thông báo đã
+              // hết hiệu lực (và `aria-invalid` sai) trong lúc sửa.
+              setLoiDiem(null);
+              setDiemSo(e.target.value);
+            }}
+          />
+
+          {loiDiem ? (
+            <p className="field-error" role="alert">
+              {loiDiem.message}
+            </p>
+          ) : null}
+
+          <div className="form-actions">
+            <button className="btn" type="submit" disabled={dangGuiDiem}>
+              Lưu điểm số
+            </button>
+            {daLuuDiem ? (
+              <span className="saved-tag" role="status">
+                Đã lưu ✓
+              </span>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
+
+      {loi ? (
+        <p className="field-error" role="alert">
+          {loi.message}
+        </p>
+      ) : null}
+
+      <div className="form-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={dangGui || biChanBoiGateDiem}
+          aria-disabled={biChanBoiGateDiem || undefined}
+          title={
+            biChanBoiGateDiem
+              ? "Cần nhập Điểm số Bài test đánh giá trước"
+              : undefined
+          }
+          onClick={guiHoanThanh}
+        >
+          Hoàn thành Mốc
+        </button>
+      </div>
     </div>
   );
 }

@@ -293,3 +293,56 @@ model BuoiHoc {
   @@index([kyNang])
   @@index([ngay])
 }
+
+/// Mốc (Milestone) — CAP-13, Story 10. `LoTrinh` KHÔNG phải một bảng riêng
+/// (Design Notes trong story) — `Moc` mang `kyNang` trực tiếp, cùng cách
+/// `ThucDonNgay`/`NhomKhauPhan` được gộp ở Story 7. 10 hàng cố định (3
+/// TiengAnh + 7 AutomationTest) được lazy-seed qua `damBaoMocDaKhoiTao()`
+/// (`app/hoc-tap/queries.ts`, mirror `taoLichTrinhNgayTuMau()`'s "AD-3 ngoại
+/// lệ 2" convention) — DB chỉ lưu `(kyNang, thuTu)` + trạng thái hoàn thành,
+/// KHÔNG BAO GIỜ lưu tiêu đề Mốc (tiêu đề là hằng số tầng ứng dụng cố định,
+/// `MOC_TIENG_ANH`/`MOC_AUTOMATION_TEST` ở `app/hoc-tap/model.ts`).
+model Moc {
+  id Int @id @default(autoincrement())
+
+  /// "TiengAnh" | "AutomationTest" — cùng quy ước String-enum tầng ứng dụng
+  /// với `BuoiHoc.kyNang`.
+  kyNang String
+
+  /// Thứ tự trong Lộ trình của Kỹ năng đó (1-based) — cùng `kyNang` xác định
+  /// đúng một slot cố định trong số 10 slot toàn app (`@@unique` dưới đây).
+  thuTu Int
+
+  /// `null` = chưa Hoàn thành. Set đúng MỘT LẦN bởi `hoanThanhMoc()` — không
+  /// bao giờ bị set lại về `null` (AD-2: không có "undo Hoàn thành").
+  ngayHoanThanh DateTime?
+
+  baiTestDanhGia BaiTestDanhGia[]
+
+  @@unique([kyNang, thuTu])
+  @@index([kyNang])
+}
+
+/// Bài test đánh giá (Assessment Test) — CAP-13. Ý nghĩa gate chỉ áp dụng
+/// cho Lộ trình Tiếng Anh, nhưng FK không tự ràng buộc theo `Moc.kyNang` ở
+/// tầng DB (SQLite không hỗ trợ check phức tạp) — luật "chỉ Tiếng Anh mới bị
+/// gate" nằm ở `hoanThanhMoc()`/`ghiDiemBaiTest()` (`app/hoc-tap/actions.ts`),
+/// không phải ở schema. FK trỏ tới một hàng `Moc` LUÔN đã tồn tại (do được
+/// lazy-seed trước), nên có thể ghi Điểm số TRƯỚC KHI Mốc đó Hoàn thành
+/// (Design Notes). Cho phép NHIỀU hàng trên cùng một Mốc (lịch sử làm lại) —
+/// không có `@@unique` trên `mocId`.
+model BaiTestDanhGia {
+  id Int @id @default(autoincrement())
+
+  mocId Int
+  moc   Moc @relation(fields: [mocId], references: [id], onDelete: Cascade)
+
+  /// Điểm số — free-form text, định dạng cố ý để ngỏ
+  /// (ARCHITECTURE-SPINE.md's Deferred).
+  diemSo String
+
+  /// Mốc ngày VN của lần nhập — mirror `BuoiHoc.ngay`'s stamp convention.
+  ngay DateTime
+
+  @@index([mocId])
+}

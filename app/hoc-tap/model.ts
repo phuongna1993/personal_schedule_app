@@ -77,3 +77,90 @@ export type TienDoKyNang = {
   /** Tổng `thoiLuongPhut` của tháng đang xem. */
   tongThoiLuongPhut: number;
 };
+
+// ---------------------------------------------------------------------------
+// Lộ trình & Mốc (CAP-13, Story 10)
+// ---------------------------------------------------------------------------
+
+/** Một Mốc cố định — chỉ `thuTu` + `ten`. Titles/order là hằng số tầng ứng
+ * dụng, KHÔNG BAO GIỜ user-edited hay lưu trong DB (Boundaries). */
+export type MocDinhNghia = { thuTu: number; ten: string };
+
+/** 3 Mốc cố định của Lộ trình Tiếng Anh, theo thứ tự (Glossary). */
+export const MOC_TIENG_ANH: readonly MocDinhNghia[] = [
+  { thuTu: 1, ten: "A1" },
+  { thuTu: 2, ten: "A2" },
+  { thuTu: 3, ten: "B1" },
+];
+
+/** 7 Mốc cố định của Lộ trình Automation Test, theo thứ tự (glossary.md). */
+export const MOC_AUTOMATION_TEST: readonly MocDinhNghia[] = [
+  { thuTu: 1, ten: "Nền tảng Python + SQL" },
+  { thuTu: 2, ten: "Pytest + UI automation (Playwright)" },
+  { thuTu: 3, ten: "UI automation + Page Object Model" },
+  { thuTu: 4, ten: "API automation (Pytest + requests)" },
+  { thuTu: 5, ten: "CI/CD (GitHub Actions) + AI in testing" },
+  { thuTu: 6, ten: "Portfolio end-to-end + Mobile testing (Appium)" },
+  { thuTu: 7, ten: "Security testing + Chứng chỉ + phỏng vấn TA" },
+];
+
+/** Tra cứu bộ Mốc cố định theo Kỹ năng — dùng chung bởi `queries.ts` (seed +
+ * merge tiêu đề) thay vì rẽ nhánh `if (kyNang === ...)` rải rác. */
+export const MOC_THEO_KY_NANG: Record<KyNangEnum, readonly MocDinhNghia[]> = {
+  TiengAnh: MOC_TIENG_ANH,
+  AutomationTest: MOC_AUTOMATION_TEST,
+};
+
+/** Một Mốc trong Lộ trình đã đọc — merge tiêu đề cố định (`MOC_THEO_KY_NANG`)
+ * + trạng thái từ DB (`Moc` row). */
+export type MocDuLieu = {
+  id: number;
+  kyNang: KyNangEnum;
+  thuTu: number;
+  ten: string;
+  /** `null` = chưa Hoàn thành. */
+  ngayHoanThanh: Date | null;
+  /** Chỉ có ý nghĩa cho Mốc HIỆN TẠI của Tiếng Anh (dùng để gate nút "Hoàn
+   * thành Mốc") — `true` khi Mốc này đã có ít nhất một hàng
+   * `BaiTestDanhGia`. Luôn `false` cho Automation Test và cho mọi Mốc không
+   * phải Mốc hiện tại (không phải "lịch sử đầy đủ" — CAP-12's Điểm số
+   * history view bị deferred, xem story's Boundaries). */
+  coDiemBaiTest: boolean;
+};
+
+/** Toàn bộ Lộ trình đã sắp xếp của MỘT Kỹ năng (CAP-13). */
+export type LoTrinhDuLieu = {
+  kyNang: KyNangEnum;
+  /** Đủ 3 hoặc 7 Mốc, sắp theo `thuTu` tăng dần. */
+  moc: MocDuLieu[];
+  /** id của Mốc hiện tại (`layMocHienTai()`'s result) — `null` khi mọi Mốc
+   * của Kỹ năng này đã Hoàn thành (terminal state). */
+  mocHienTaiId: number | null;
+};
+
+/** Một Điểm số Bài test đánh giá vừa ghi (`ghiDiemBaiTest()`). */
+export type BaiTestDanhGiaDaGhi = {
+  id: number;
+  mocId: number;
+  diemSo: string;
+  ngay: Date;
+};
+
+/**
+ * Nút "Hoàn thành Mốc" có bị GATE chặn hay không — CHỈ Tiếng Anh mới có gate
+ * (Automation Test luôn `false`, bất kể `coDiemBaiTest`, mirror
+ * `hoanThanhMoc()`'s server-side rule ở `actions.ts`).
+ *
+ * Tách thành một hàm THUẦN, export riêng thay vì để logic JSX inline trong
+ * `HocTapView.tsx`: đây là bất biến quan trọng nhất của story, và repo này
+ * không có hạ tầng test component nào để bắt lỗi nếu logic JSX bị đơn giản
+ * hoá nhầm (ví dụ lỡ bỏ điều kiện `kyNang === "TiengAnh"`, khoá vĩnh viễn
+ * nút của Automation Test). Một hàm thuần thì unit-test trực tiếp được mà
+ * không cần dựng component.
+ */
+export function biChanHoanThanhBoiGateDiem(
+  kyNang: KyNangEnum,
+  coDiemBaiTest: boolean,
+): boolean {
+  return kyNang === "TiengAnh" && !coDiemBaiTest;
+}

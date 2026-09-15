@@ -11,6 +11,7 @@ import {
 import HocTapView from "./HocTapView";
 import {
   layLichSuThang,
+  layLoTrinh,
   layThangSomNhatHocTap,
   tinhStreak,
 } from "./queries";
@@ -47,13 +48,22 @@ export default async function TrangHocTap({
 
   // `layThangSomNhatHocTap()`/`tinhStreak()` không phụ thuộc `thangXem` (streak
   // luôn là con số chạy, độc lập tháng đang xem — Boundaries) nên chạy song
-  // song, cùng lúc với clamp bên dưới, thay vì đợi tuần tự.
-  const [thangSomNhat, streakTiengAnh, streakAutomationTest] =
-    await Promise.all([
-      layThangSomNhatHocTap(),
-      tinhStreak("TiengAnh"),
-      tinhStreak("AutomationTest"),
-    ]);
+  // song, cùng lúc với clamp bên dưới, thay vì đợi tuần tự. `layLoTrinh()`
+  // (CAP-13, Story 10) cũng không phụ thuộc `thangXem` — Lộ trình không có
+  // khái niệm "tháng đang xem" — nên gộp chung vào đây.
+  const [
+    thangSomNhat,
+    streakTiengAnh,
+    streakAutomationTest,
+    loTrinhTiengAnh,
+    loTrinhAutomationTest,
+  ] = await Promise.all([
+    layThangSomNhatHocTap(),
+    tinhStreak("TiengAnh"),
+    tinhStreak("AutomationTest"),
+    layLoTrinh("TiengAnh"),
+    layLoTrinh("AutomationTest"),
+  ]);
 
   let thangXem = (thangThamSo && tuThamSoThang(thangThamSo)) || thangHienTai;
 
@@ -117,6 +127,10 @@ export default async function TrangHocTap({
             streak: streakAutomationTest,
             ...lichSuAutomationTest,
           },
+        }}
+        loTrinh={{
+          TiengAnh: loTrinhTiengAnh,
+          AutomationTest: loTrinhAutomationTest,
         }}
         nhanThang={nhanThang}
         hrefThangTruoc={hrefThangTruoc}
