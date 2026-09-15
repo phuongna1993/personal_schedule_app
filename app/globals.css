@@ -1207,6 +1207,59 @@ select {
   margin: 2px 0 0;
 }
 
+/* ------------------------------------------------------- hôm nay (hub) --- */
+/* Story 11. Ported from mockups/dashboard.html:86-90 (`.greeting`/`.avatar`)
+   and `:113` (`.grid`, renamed `.hub-grid` here — a bare "grid" is too
+   generic/collision-prone next to this file's specific names like
+   `.mini-progress-wrap`/`.threshold-tag`/`.budget-card`), remapped onto this
+   file's tokens. Everything else on the dashboard reuses
+   `.card`/`.task-row`/`.chk`/`.bar`/`.mini-progress-*`/`.info-box`/
+   `.budget-card`/`.row-top`/`.spent`/`.pct-big`/`.threshold-tag`/`.cat-chip`/
+   `.empty-txt`/`.link-add` as-is — no near-duplicate class added for any of
+   those (Code Map: "a new class only for the warning list if nothing
+   existing matches" — `.budget-card` already matches). */
+
+.greeting {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.greeting .date {
+  font-weight: 400;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  display: block;
+  margin-top: 2px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+  margin-top: var(--s-2);
+}
+
+@media (max-width: 640px) {
+  .hub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

@@ -84,3 +84,38 @@ export type GiaoDichDaGhi = GiaoDich & {
   /** `null` khi là Thu, chưa có `NganSach` tháng này, hoặc chưa chạm ngưỡng. */
   canhBaoNganSach: CanhBaoNganSach | null;
 };
+
+/**
+ * Ngưỡng cảnh báo Ngân sách — cố định 30% CÒN LẠI (SPEC.md CAP-6), tức đã chi
+ * >= 70% hạn mức. Khai báo MỘT LẦN ở đây (module không chạm Prisma) và dùng
+ * chung bởi `actions.ts` (`tinhCanhBaoNganSach()`, đường GHI) lẫn
+ * `queries.ts` (`layCanhBaoNganSachHienTai()`, đường ĐỌC cho Hôm nay, Story
+ * 11) — trước đó hai nơi này từng khai hai bản hằng số riêng cùng giá trị,
+ * có nguy cơ trôi dạt nếu chỉ sửa một bên. So sánh bằng số nguyên
+ * (`daChi * MAU_SO >= hanMuc * TU_SO`) để tránh sai số dấu phẩy động khi so
+ * `daChi / hanMuc >= 0.7`.
+ */
+export const TU_SO_NGUONG_CANH_BAO = 7;
+export const MAU_SO_NGUONG_CANH_BAO = 10;
+
+/**
+ * Trạng thái Ngân sách hiển thị trên thẻ Chi tiêu ở Hôm nay (Story 11) — hàm
+ * THUẦN, tách khỏi JSX của `DashboardView.tsx` để unit-test trực tiếp được
+ * (repo này không có hạ tầng test component, mirror
+ * `biChanHoanThanhBoiGateDiem()` ở `app/hoc-tap/model.ts`).
+ *
+ * `canhBao` rỗng khớp CẢ HAI trạng thái "chưa đặt Ngân sách nào" lẫn "đã đặt
+ * nhưng mọi Danh mục đều lành mạnh" — `coNganSach` (từ
+ * `layDanhMucVoiHanMucThangHienTai()`) là tín hiệu duy nhất phân biệt được
+ * hai trường hợp đó (I/O matrix, Story 11).
+ */
+export type TrangThaiNganSachHomNay = "chua-dat" | "lanh-manh" | "canh-bao";
+
+export function xacDinhTrangThaiNganSach(
+  coNganSach: boolean,
+  canhBao: CanhBaoNganSach[],
+): TrangThaiNganSachHomNay {
+  if (!coNganSach) return "chua-dat";
+  if (canhBao.length === 0) return "lanh-manh";
+  return "canh-bao";
+}

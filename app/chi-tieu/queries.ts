@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import { layMocDauThangKeTiepVN, layMocDauThangVN } from "@/lib/ngayVn";
-import { laLoaiGiaoDich, type DanhMuc, type GiaoDich } from "./model";
+import {
+  type CanhBaoNganSach,
+  laLoaiGiaoDich,
+  type DanhMuc,
+  type GiaoDich,
+  MAU_SO_NGUONG_CANH_BAO,
+  TU_SO_NGUONG_CANH_BAO,
+} from "./model";
 
 /** Một dòng chi tiết theo Danh mục trong Báo cáo tháng (CAP-7) — `hanMuc:
  * null` khi Danh mục chưa có hàng `NganSach` cho đúng tháng đang xem. */
@@ -45,7 +52,7 @@ export type DanhMucVoiHanMuc = {
  * File này chạm `lib/db` nên chỉ dùng được ở phía server.
  */
 
-export type { DanhMuc, GiaoDich, LoaiGiaoDich } from "./model";
+export type { CanhBaoNganSach, DanhMuc, GiaoDich, LoaiGiaoDich } from "./model";
 
 export type GiaoDichThangDuLieu = {
   /** Mốc đầu tháng (VN) của tháng đang đọc. */
@@ -222,4 +229,87 @@ export async function layBaoCaoThang(
     );
 
   return { thang: dauThang, tongChi, tongThu, chiTietDanhMuc };
+}
+
+// ---------------------------------------------------------------------------
+// Cảnh báo Ngân sách hiện tại (Story 11, CAP-6) — dùng cho thẻ Chi tiêu ở
+// Hôm nay. Đường ĐỌC THUẦN, không bao giờ gọi từ một đường ghi.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cảnh báo Ngân sách (CAP-6) của MỌI Danh mục đang ở trạng thái cảnh báo/vượt
+ * ngưỡng trong THÁNG chứa `thoiDiem` (mặc định: tháng hiện tại, giờ VN) — dùng
+ * cho thẻ Chi tiêu ở Hôm nay (Story 11).
+ *
+ * Chỉ trả về các Danh mục ĐÃ có hàng `NganSach` cho đúng tháng này VÀ đã chạm
+ * ngưỡng (`daChi` >= 70% `hanMuc`, cùng công thức `tinhCanhBaoNganSach()`) —
+ * Danh mục chưa có `NganSach` tháng này, hoặc còn dưới ngưỡng, không xuất
+ * hiện ở đây. Mảng rỗng vừa có thể là "chưa đặt Ngân sách nào" vừa có thể là
+ * "đã đặt nhưng mọi Danh mục đều lành mạnh" — dashboard tự phân biệt hai
+ * trạng thái này bằng cách gọi thêm `layDanhMucVoiHanMucThangHienTai()` (I/O
+ * matrix, Story 11).
+ *
+ * Đọc-only: không bao giờ ghi `GiaoDich`/`NganSach`. Ranh giới tháng và cách
+ * cộng dồn `daChi` theo Danh mục mirror `layBaoCaoThang()` ở trên.
+ */
+export async function layCanhBaoNganSachHienTai(
+  thoiDiem: Date = new Date(),
+): Promise<CanhBaoNganSach[]> {
+  const dauThang = layMocDauThangVN(thoiDiem);
+  const dauThangKeTiep = layMocDauThangKeTiepVN(thoiDiem);
+
+  const nganSachRows = await prisma.nganSach.findMany({
+    where: { thang: dauThang },
+    include: { danhMucChiTieu: { select: { ten: true } } },
+  });
+  if (nganSachRows.length === 0) return [];
+
+  const idDanhMuc = nganSachRows.map((row) => row.danhMucChiTieuId);
+  const giaoDichRows = await prisma.giaoDich.findMany({
+    where: {
+      loai: "Chi",
+      danhMucChiTieuId: { in: idDanhMuc },
+      ngay: { gte: dauThang, lt: dauThangKeTiep },
+    },
+    select: { danhMucChiTieuId: true, soTien: true },
+  });
+
+  // `giaoDichRows` chỉ chứa Giao dịch Chi đã lọc `danhMucChiTieuId: { in:
+  // idDanhMuc }` (toàn số nguyên) ở câu truy vấn trên — không có hàng nào ở
+  // đây thực sự mang `danhMucChiTieuId: null` (khác `giaoDich.danhMucChiTieuId`
+  // nói chung, vốn `null` cho Giao dịch Thu), nên không lọc lại ở runtime. Ép
+  // kiểu `as number` vì kiểu Prisma sinh ra cho cột vẫn là `number | null`
+  // (không tự thu hẹp theo điều kiện `where` của câu truy vấn).
+  const daChiTheoDanhMuc = new Map<number, number>();
+  for (const row of giaoDichRows) {
+    const danhMucChiTieuId = row.danhMucChiTieuId as number;
+    daChiTheoDanhMuc.set(
+      danhMucChiTieuId,
+      (daChiTheoDanhMuc.get(danhMucChiTieuId) ?? 0) + row.soTien,
+    );
+  }
+
+  const canhBao: CanhBaoNganSach[] = [];
+  for (const ns of nganSachRows) {
+    const daChi = daChiTheoDanhMuc.get(ns.danhMucChiTieuId) ?? 0;
+
+    // Dưới ngưỡng: daChi/hanMuc < 70% -> bỏ qua, không phải cảnh báo.
+    if (daChi * MAU_SO_NGUONG_CANH_BAO < ns.hanMuc * TU_SO_NGUONG_CANH_BAO) {
+      continue;
+    }
+
+    canhBao.push({
+      danhMucChiTieuId: ns.danhMucChiTieuId,
+      tenDanhMuc: ns.danhMucChiTieu?.ten ?? "",
+      hanMuc: ns.hanMuc,
+      daChi,
+      phanTramConLai: Math.floor(((ns.hanMuc - daChi) / ns.hanMuc) * 100),
+    });
+  }
+
+  return canhBao.sort(
+    (a, b) =>
+      a.tenDanhMuc.localeCompare(b.tenDanhMuc) ||
+      a.danhMucChiTieuId - b.danhMucChiTieuId,
+  );
 }

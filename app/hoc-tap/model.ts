@@ -164,3 +164,24 @@ export function biChanHoanThanhBoiGateDiem(
 ): boolean {
   return kyNang === "TiengAnh" && !coDiemBaiTest;
 }
+
+/**
+ * Xấp xỉ "Kỹ năng này chưa từng có hoạt động học nào" cho thẻ Học tập ở Hôm
+ * nay (Story 11) — hàm THUẦN, tách khỏi JSX của `DashboardView.tsx` cùng lý
+ * do `biChanHoanThanhBoiGateDiem()` ở trên (không có hạ tầng test component).
+ *
+ * Chỉ dựa vào ba tín hiệu suy được từ `tinhStreak()`/`layLoTrinh()` — hai hàm
+ * đọc DUY NHẤT mà Hôm nay được phép gọi của module này (Boundaries của
+ * story, không gọi thêm hàm đọc lịch sử `BuoiHoc` nào khác): không streak
+ * chạy, chưa từng Hoàn thành Mốc nào, và vẫn đang đứng ở Mốc đầu tiên của Lộ
+ * trình. Đây là một PHÉP SUY XẤP XỈ có chủ đích (`streak === 0` không tự nó
+ * chứng minh "chưa từng học" — chỉ chứng minh "không học hôm nay lẫn hôm
+ * qua"), không phải một truy vấn lịch sử đầy đủ.
+ */
+export function laChuaCoHoatDongHocTap(
+  streak: number,
+  chuaTungHoanThanhMoc: boolean,
+  dangOMocDauTien: boolean,
+): boolean {
+  return streak === 0 && chuaTungHoanThanhMoc && dangOMocDauTien;
+}

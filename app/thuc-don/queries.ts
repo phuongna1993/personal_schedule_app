@@ -11,7 +11,7 @@ import { BUOI, type MonAn, type ThucDonNgayDuLieu } from "./model";
  * File này chạm `lib/db` nên chỉ dùng được ở phía server.
  */
 
-export type { MonAn, NguyenLieu } from "./model";
+export type { MonAn, NguyenLieu, ThucDonNgayDuLieu } from "./model";
 
 /** Đọc toàn bộ Món ăn trong Ngân hàng món ăn, kèm Nguyên liệu của từng món —
  * dùng cho lưới `/thuc-don/chon-mon` (CAP-8). Sắp theo id tăng dần (thứ tự

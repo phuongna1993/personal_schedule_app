@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { layMocNgayVN, themNgay } from "@/lib/ngayVn";
+import { laChuaCoHoatDongHocTap } from "./model";
 
 /**
  * Unit test cho đường ĐỌC của module Học tập (CAP-12, Story 9):
@@ -475,5 +476,35 @@ describe("layLoTrinh", () => {
     expect(loTrinh.mocHienTaiId).toBeNull();
     expect(prismaMock.baiTestDanhGia.count).not.toHaveBeenCalled();
     expect(loTrinh.moc.every((m) => m.coDiemBaiTest === false)).toBe(true);
+  });
+});
+
+/**
+ * `laChuaCoHoatDongHocTap` (Story 11, `app/hoc-tap/model.ts`) — hàm THUẦN
+ * đứng sau trạng thái rỗng "chưa có buổi học nào" của thẻ Học tập ở Hôm nay.
+ * Chỉ `true` khi CẢ BA tín hiệu cùng khớp: không streak chạy, chưa từng Hoàn
+ * thành Mốc nào, và vẫn đang đứng ở Mốc đầu tiên.
+ */
+describe("laChuaCoHoatDongHocTap", () => {
+  it("false khi đang có streak chạy (streak > 0), bất kể hai tín hiệu còn lại", () => {
+    expect(laChuaCoHoatDongHocTap(1, true, true)).toBe(false);
+  });
+
+  it("false khi streak = 0 nhưng đã từng Hoàn thành ít nhất một Mốc", () => {
+    // Ví dụ: đã học một thời gian, hoàn thành Mốc 1, rồi ngừng vài ngày —
+    // streak hiện tại là 0 nhưng KHÔNG phải "chưa từng có hoạt động".
+    expect(laChuaCoHoatDongHocTap(0, false, true)).toBe(false);
+  });
+
+  it("false khi streak = 0, chưa Hoàn thành Mốc nào, nhưng đã qua khỏi Mốc đầu tiên", () => {
+    // Trường hợp biên: mocHienTaiId lệch khỏi Mốc đầu tiên dù
+    // chuaTungHoanThanhMoc vẫn true — không nên xảy ra ở dữ liệu thật (Mốc
+    // đầu tiên luôn phải Hoàn thành trước khi qua Mốc kế), nhưng hàm không tự
+    // giả định bất biến đó, chỉ đọc đúng 3 tham số được truyền vào.
+    expect(laChuaCoHoatDongHocTap(0, true, false)).toBe(false);
+  });
+
+  it("true khi streak = 0, chưa từng Hoàn thành Mốc nào, và vẫn ở Mốc đầu tiên (thực sự chưa có hoạt động)", () => {
+    expect(laChuaCoHoatDongHocTap(0, true, true)).toBe(true);
   });
 });

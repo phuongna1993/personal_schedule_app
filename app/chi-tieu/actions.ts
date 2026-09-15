@@ -15,7 +15,9 @@ import {
   type GiaoDichDaGhi,
   laLoaiGiaoDich,
   type LoaiGiaoDich,
+  MAU_SO_NGUONG_CANH_BAO,
   type NganSach,
+  TU_SO_NGUONG_CANH_BAO,
 } from "./model";
 
 /**
@@ -203,14 +205,6 @@ async function xacNhanDanhMucTonTai(id: number): Promise<KetQua<true>> {
   }
   return thanhCong(true as const);
 }
-
-/**
- * Ngưỡng cảnh báo Ngân sách — cố định 30% còn lại (SPEC.md CAP-6), không
- * cấu hình theo Danh mục. So sánh bằng số nguyên (`daChi * 10 >= hanMuc * 7`)
- * để tránh sai số dấu phẩy động khi so `daChi / hanMuc >= 0.7`.
- */
-const TU_SO_NGUONG_CANH_BAO = 7;
-const MAU_SO_NGUONG_CANH_BAO = 10;
 
 /**
  * Tính cảnh báo Ngân sách (CAP-6) cho một Danh mục tại THÁNG chứa `thoiDiem`

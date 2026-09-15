@@ -16,6 +16,10 @@ import {
   MOC_THEO_KY_NANG,
 } from "./model";
 
+/** Re-export cho tầng tổng hợp Hôm nay (Story 11, AD-1) — chỉ được đọc kiểu
+ * dữ liệu qua `queries.ts`, không bao giờ import trực tiếp `./model`. */
+export type { KyNangEnum, LoTrinhDuLieu } from "./model";
+
 /**
  * AD-1 — Module Học tập sở hữu độc quyền model `BuoiHoc`, kể cả đường ĐỌC.
  * Server Action hoặc truy vấn của module khác (kể cả tầng tổng hợp

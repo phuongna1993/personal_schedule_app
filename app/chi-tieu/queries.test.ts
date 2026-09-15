@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type CanhBaoNganSach, xacDinhTrangThaiNganSach } from "./model";
 
 /**
  * Unit test cho đường ĐỌC của module Chi tiêu (`layGiaoDichThangHienTai`,
@@ -36,6 +37,7 @@ const {
   layDanhMucVoiHanMucThangHienTai,
   layThangSomNhat,
   layBaoCaoThang,
+  layCanhBaoNganSachHienTai,
 } = await import("./queries");
 
 beforeEach(() => {
@@ -551,5 +553,266 @@ describe("layBaoCaoThang", () => {
     await layBaoCaoThang();
 
     expect(prismaMock.nganSach.findMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `layCanhBaoNganSachHienTai` (Story 11, CAP-6) — thẻ Chi tiêu ở Hôm nay.
+ * Trọng tâm: I/O matrix của story (no Ngân sách at all / all healthy / one
+ * or more in warning-or-over), cùng ngưỡng 30%-còn-lại với
+ * `tinhCanhBaoNganSach()` (`actions.ts`).
+ */
+describe("layCanhBaoNganSachHienTai", () => {
+  it("trả mảng rỗng khi chưa có NganSach nào tháng này (không gọi giaoDich.findMany)", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    expect(canhBao).toEqual([]);
+    expect(prismaMock.giaoDich.findMany).not.toHaveBeenCalled();
+  });
+
+  it("trả mảng rỗng khi có NganSach nhưng mọi Danh mục đều lành mạnh (dưới 70% hạn mức)", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      { danhMucChiTieuId: 1, soTien: 500_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    expect(canhBao).toEqual([]);
+  });
+
+  it("trả đúng Danh mục chạm ngưỡng cảnh báo (đã chi đúng 70% hạn mức)", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      { danhMucChiTieuId: 1, soTien: 700_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    expect(canhBao).toEqual([
+      {
+        danhMucChiTieuId: 1,
+        tenDanhMuc: "Ăn uống",
+        hanMuc: 1_000_000,
+        daChi: 700_000,
+        phanTramConLai: 30,
+      },
+    ]);
+  });
+
+  it("cộng dồn daChi từ NHIỀU Giao dịch cùng Danh mục trong tháng, không chỉ lấy hàng cuối", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      { danhMucChiTieuId: 1, soTien: 300_000 },
+      { danhMucChiTieuId: 1, soTien: 250_000 },
+      { danhMucChiTieuId: 1, soTien: 200_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    // Tổng 750_000 -> đúng 75% hạn mức, đã chạm ngưỡng cảnh báo (>=70%).
+    expect(canhBao).toEqual([
+      {
+        danhMucChiTieuId: 1,
+        tenDanhMuc: "Ăn uống",
+        hanMuc: 1_000_000,
+        daChi: 750_000,
+        phanTramConLai: 25,
+      },
+    ]);
+  });
+
+  it("phanTramConLai làm tròn XUỐNG (về -vô cực) cho một tỷ lệ không tròn, không tròn về 0", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 300_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      { danhMucChiTieuId: 1, soTien: 400_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    // (300_000 - 400_000) / 300_000 * 100 = -33.333...% -> Math.floor -> -34
+    // (không phải -33, vốn là kết quả nếu lỡ dùng Math.round/Math.trunc thay
+    // vì Math.floor) — cùng hướng làm tròn với `tinhCanhBaoNganSach()`
+    // (`actions.ts`), khớp docstring của `CanhBaoNganSach.phanTramConLai`.
+    expect(canhBao[0]?.phanTramConLai).toBe(-34);
+  });
+
+  it("phanTramConLai âm khi đã chi vượt hạn mức", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      { danhMucChiTieuId: 1, soTien: 1_200_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    expect(canhBao).toEqual([
+      {
+        danhMucChiTieuId: 1,
+        tenDanhMuc: "Ăn uống",
+        hanMuc: 1_000_000,
+        daChi: 1_200_000,
+        phanTramConLai: -20,
+      },
+    ]);
+  });
+
+  it("chỉ trả các Danh mục chạm ngưỡng, bỏ qua Danh mục lành mạnh, sắp theo tên", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 2,
+        hanMuc: 500_000,
+        danhMucChiTieu: { ten: "Đi lại" },
+      },
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+      {
+        danhMucChiTieuId: 3,
+        hanMuc: 2_000_000,
+        danhMucChiTieu: { ten: "Giải trí" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([
+      // Đi lại: 400_000 / 500_000 = 80% -> cảnh báo.
+      { danhMucChiTieuId: 2, soTien: 400_000 },
+      // Ăn uống: 100_000 / 1_000_000 = 10% -> lành mạnh, bị lọc bỏ.
+      { danhMucChiTieuId: 1, soTien: 100_000 },
+      // Giải trí: 1_800_000 / 2_000_000 = 90% -> cảnh báo.
+      { danhMucChiTieuId: 3, soTien: 1_800_000 },
+    ]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    // Thứ tự theo `localeCompare()` mặc định (không truyền locale) — cùng quy
+    // ước `layBaoCaoThang()` ở trên, không tự suy đoán một thứ tự "trực quan"
+    // khác đi.
+    expect(canhBao.map((c) => c.danhMucChiTieuId)).toEqual([2, 3]);
+    expect(canhBao.map((c) => c.tenDanhMuc)).toEqual(["Đi lại", "Giải trí"]);
+  });
+
+  it("Danh mục có NganSach nhưng chưa có Giao dịch Chi nào tháng này -> daChi 0, không cảnh báo", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([]);
+
+    const canhBao = await layCanhBaoNganSachHienTai();
+
+    expect(canhBao).toEqual([]);
+  });
+
+  it("lọc theo đúng ranh giới THÁNG VN của thoiDiem truyền vào, chỉ Giao dịch loai Chi", async () => {
+    prismaMock.nganSach.findMany.mockResolvedValue([
+      {
+        danhMucChiTieuId: 1,
+        hanMuc: 1_000_000,
+        danhMucChiTieu: { ten: "Ăn uống" },
+      },
+    ]);
+    prismaMock.giaoDich.findMany.mockResolvedValue([]);
+    // 2026-07-15T10:00:00.000Z = 15/07/2026 17:00 giờ VN.
+    const thoiDiem = new Date("2026-07-15T10:00:00.000Z");
+
+    await layCanhBaoNganSachHienTai(thoiDiem);
+
+    expect(prismaMock.nganSach.findMany).toHaveBeenCalledWith({
+      // 01/07/2026 00:00 VN == 2026-06-30T17:00:00.000Z.
+      where: { thang: new Date("2026-06-30T17:00:00.000Z") },
+      include: { danhMucChiTieu: { select: { ten: true } } },
+    });
+    expect(prismaMock.giaoDich.findMany).toHaveBeenCalledWith({
+      where: {
+        loai: "Chi",
+        danhMucChiTieuId: { in: [1] },
+        ngay: {
+          gte: new Date("2026-06-30T17:00:00.000Z"),
+          // 01/08/2026 00:00 VN == 2026-07-31T17:00:00.000Z.
+          lt: new Date("2026-07-31T17:00:00.000Z"),
+        },
+      },
+      select: { danhMucChiTieuId: true, soTien: true },
+    });
+  });
+});
+
+const CANH_BAO_MAU: CanhBaoNganSach = {
+  danhMucChiTieuId: 1,
+  tenDanhMuc: "Ăn uống",
+  hanMuc: 1_000_000,
+  daChi: 800_000,
+  phanTramConLai: 20,
+};
+
+/**
+ * `xacDinhTrangThaiNganSach` (Story 11, `app/chi-tieu/model.ts`) — hàm THUẦN
+ * đứng sau ba trạng thái của thẻ Chi tiêu ở Hôm nay. `canhBao` rỗng khớp cả
+ * "chưa đặt Ngân sách" lẫn "đã đặt nhưng lành mạnh" — `coNganSach` là tín
+ * hiệu DUY NHẤT phân biệt hai trạng thái đó (I/O matrix của story).
+ */
+describe("xacDinhTrangThaiNganSach", () => {
+  it('trả "chua-dat" khi chưa có Danh mục nào có NganSach tháng này', () => {
+    expect(xacDinhTrangThaiNganSach(false, [])).toBe("chua-dat");
+  });
+
+  it('trả "chua-dat" ngay cả khi canhBao (vô lý) không rỗng, vì coNganSach là tín hiệu quyết định', () => {
+    // Trường hợp không nên xảy ra trong thực tế (canhBao chỉ có phần tử khi
+    // đã có NganSach) — chốt rằng hàm tin vào `coNganSach` trước, không tự
+    // suy luận lại từ độ dài `canhBao`.
+    expect(xacDinhTrangThaiNganSach(false, [CANH_BAO_MAU])).toBe("chua-dat");
+  });
+
+  it('trả "lanh-manh" khi đã có NganSach nhưng không Danh mục nào chạm ngưỡng', () => {
+    expect(xacDinhTrangThaiNganSach(true, [])).toBe("lanh-manh");
+  });
+
+  it('trả "canh-bao" khi có ÍT NHẤT một Danh mục chạm ngưỡng/vượt', () => {
+    expect(xacDinhTrangThaiNganSach(true, [CANH_BAO_MAU])).toBe("canh-bao");
+  });
+
+  it('trả "canh-bao" khi có NHIỀU Danh mục cùng chạm ngưỡng', () => {
+    expect(
+      xacDinhTrangThaiNganSach(true, [
+        CANH_BAO_MAU,
+        { ...CANH_BAO_MAU, danhMucChiTieuId: 2, tenDanhMuc: "Đi lại" },
+      ]),
+    ).toBe("canh-bao");
   });
 });
