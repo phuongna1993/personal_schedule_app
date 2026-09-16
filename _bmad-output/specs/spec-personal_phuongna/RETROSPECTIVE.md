@@ -127,7 +127,7 @@ Items 1-4 were applied directly after this retrospective, same session (user req
 | 2 | Give `DongKyNang`'s 0-streak state the same neutral treatment `HocTapView.tsx`'s `TienDoCot` already uses, instead of printing "🔥0" | Adversarial #1, `DashboardView.tsx:431` | Nguyenanhphuong | **Done** — neutral "Chưa có streak" label when `streak === 0` |
 | 3 | Replace `laChuaCoHoatDongHocTap()`'s streak/Mốc-only heuristic with an actual "has any Buổi học ever" signal (cheap `count()` or reuse of `layThangSomNhatHocTap()` scoped per Kỹ năng) | Adversarial #2, `app/hoc-tap/model.ts:181` | Nguyenanhphuong | **Done** — new `laDaTungCoBuoiHoc(kyNang)` query added to `app/hoc-tap/queries.ts`, heuristic function removed entirely (no longer needed), wired through `page.tsx` |
 | 4 | Sort `TheLichTrinh`'s capped task list so pending tasks are never hidden behind already-`daXong` ones | Adversarial #4, `DashboardView.tsx:150` | Nguyenanhphuong | **Done** — stable sort by `daXong` before slicing |
-| 5 | **Spec reconciliation:** build the deferred CAP-12 score-history view (`layLichSuDiemBaiTest()` + a list UI) as its own story — `BaiTestDanhGia` already supports it, no schema change needed | Spec-to-implementation reconciliation, deferred twice (Story 9 → 10) | Nguyenanhphuong | Proposed |
+| 5 | **Spec reconciliation:** build the deferred CAP-12 score-history view (`layLichSuDiemBaiTest()` + a list UI) as its own story — `BaiTestDanhGia` already supports it, no schema change needed | Spec-to-implementation reconciliation, deferred twice (Story 9 → 10) | Nguyenanhphuong | **Done** — Story 12 (`stories/12-xem-lich-su-diem-bai-test.md`, commit `0dc9466`). CAP-12 is now fully met. |
 | 6 | Consolidate the cross-module duplicated constants (`SO_TIEN_TOI_DA`/`THOI_LUONG_TOI_DA`, `DO_DAI_GHI_CHU_TOI_DA`) and the 3 `formatTien`/`formatPhut` copies into `lib/` | Duplication map | Nguyenanhphuong | Proposed |
 | 7 | One shared-`useTransition`-row-blocking fix across `TrinhSoanThaoMau`, `LichTrinhNgayView`, `ChiTieuView` (already flagged 3× in `deferred-work.md`, re-confirmed here) | Triage index group A | Nguyenanhphuong | Proposed |
 | 8 | Investigate and fix `taoLichTrinhNgayTuMau()`'s misleading "revalidatePath during render" console error on the first render of a new day | `deferred-work.md`, Story 11 entry | Nguyenanhphuong | Proposed |
@@ -152,6 +152,8 @@ Items 1-4 were applied directly after this retrospective, same session (user req
 - Behavior verification (above) confirms the built system runs and serves all 5 routes correctly; nothing here rises to a blocking defect that would force **rejected** — every open item is either cosmetic, already-scoped future work, or a small, well-understood fix.
 
 This is **accepted-with-open-items**, not **rejected**, because: every committed story is done, the runtime behavior verified cleanly, and every open item (the CAP-12 gap, the 4 Dashboard-boundary bugs, the duplication/pattern-divergence backlog) is a named, evidenced, actionable item — not an unresolved blocker standing in for undone work.
+
+**Update (same day, after this retrospective):** action items 1-5 were applied — the 4 Dashboard boundary bugs fixed (commit `19b93c5`) and Story 12 built to close the CAP-12 gap (commit `0dc9466`). The verdict recorded above is kept as the historical record of the epic's state at the time this retrospective ran, not rewritten in place — see the Action items table for current status of every item.
 
 ## Open questions
 
