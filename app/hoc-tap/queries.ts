@@ -8,12 +8,14 @@ import {
 } from "@/lib/ngayVn";
 import {
   type BuoiHocDaGhi,
+  type DiemBaiTestLichSu,
   dinhDangBuoiHoc,
   KY_NANG,
   type KyNangEnum,
   type LoTrinhDuLieu,
   type MocDuLieu,
   MOC_THEO_KY_NANG,
+  MOC_TIENG_ANH,
 } from "./model";
 
 /** Re-export cho tầng tổng hợp Hôm nay (Story 11, AD-1) — chỉ được đọc kiểu
@@ -255,4 +257,38 @@ export async function layLoTrinh(kyNang: KyNangEnum): Promise<LoTrinhDuLieu> {
   }));
 
   return { kyNang, moc, mocHienTaiId: mocHienTai?.id ?? null };
+}
+
+/**
+ * Lịch sử TOÀN BỘ Điểm số Bài test đánh giá của Tiếng Anh (CAP-12, Story
+ * 12) — mọi hàng `BaiTestDanhGia` từng ghi cho Mốc thuộc Lộ trình Tiếng Anh,
+ * mới nhất trước (mirror `layLichSuThang()`'s `orderBy`), mỗi hàng kèm tiêu
+ * đề Mốc nó được ghi cho (merge từ `MOC_TIENG_ANH`, cùng cách `layLoTrinh()`
+ * merge tiêu đề — KHÔNG BAO GIỜ lưu tiêu đề lặp lại trong DB).
+ *
+ * KHÔNG nhận tham số `kyNang` — luôn và chỉ là lịch sử của Tiếng Anh, mirror
+ * kỷ luật "no kyNang param, hardcoded to TiengAnh" của `ghiDiemBaiTest()`
+ * (Story 10), khiến việc dùng nhầm hàm này cho Automation Test (vốn không
+ * có hàng `BaiTestDanhGia` nào) không thể xảy ra về mặt cấu trúc, thay vì
+ * chỉ được validate.
+ *
+ * Đọc-only — không seed, không ghi. Không phân trang/lọc theo khoảng ngày
+ * (Boundaries: quy mô app cá nhân một người dùng, vài chục hàng là nhiều).
+ */
+export async function layLichSuDiemBaiTest(): Promise<DiemBaiTestLichSu[]> {
+  const rows = await prisma.baiTestDanhGia.findMany({
+    where: { moc: { kyNang: "TiengAnh" } },
+    include: { moc: { select: { thuTu: true } } },
+    orderBy: [{ ngay: "desc" }, { id: "desc" }],
+  });
+
+  const tenTheoThuTu = new Map(MOC_TIENG_ANH.map((d) => [d.thuTu, d.ten]));
+
+  return rows.map((row) => ({
+    id: row.id,
+    mocThuTu: row.moc.thuTu,
+    mocTen: tenTheoThuTu.get(row.moc.thuTu) ?? `Mốc ${row.moc.thuTu}`,
+    diemSo: row.diemSo,
+    ngay: row.ngay,
+  }));
 }

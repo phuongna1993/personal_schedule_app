@@ -32,6 +32,18 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 
 ---
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/12-xem-lich-su-diem-bai-test.md`
+  summary: `layLichSuDiemBaiTest()`'s `MOC_TIENG_ANH`-title fallback (`` `Mốc ${row.moc.thuTu}` `` for a `thuTu` not found in the fixed title list) has no test exercising it.
+  evidence: Blind Hunter review finding; not reachable through any current write path — `Moc` rows are only ever seeded by `damBaoMocDaKhoiTao()` with the 3 fixed Tiếng Anh `thuTu` values (1-3), all present in `MOC_TIENG_ANH` — same class of "defense-in-depth gap, not reachable through any current write path" already accepted repeatedly in this file.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/12-xem-lich-su-diem-bai-test.md`
+  summary: The new Điểm số history list gives no visual indicator that two rows for the same Mốc are separate retake attempts (e.g. "Lần 1"/"Lần 2") — a user sees two scores for "A1" with no in-UI cue they're sequential, not duplicate/erroneous entries.
+  evidence: Blind Hunter review finding; real UX nicety, not required by the story's I/O matrix (which only required retakes to all appear, newest first, never hidden or merged — satisfied as-is).
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/12-xem-lich-su-diem-bai-test.md`
+  summary: The new history section in `LoTrinhCot` (`app/hoc-tap/HocTapView.tsx`) uses a plain `<p className="field-label">` + `<div>` rows instead of a heading (`h3`/`h4`) or list semantics (`ul`/`li`), so it isn't navigable as its own landmark/list for screen readers.
+  evidence: Blind Hunter review finding; same class of gap as the already-accepted Accessibility Floor backlog opened in Story 1 and added to by Stories 3/7/10 — a whole-app, pre-existing, explicitly-deferred concern, not unique to this story.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
   summary: `app/hoc-tap/queries.ts:17-19`'s re-export comment claims `model.ts` is "không bao giờ" (never) imported directly by the aggregation layer, which `app/DashboardView.tsx:6` (`laChuaCoHoatDongHocTap`) immediately contradicts.
   evidence: Epic retrospective, Architecture delta finding. Self-contradicting comment, not a functional defect — `DashboardView.tsx`'s own comment at lines 10-20 already documents this exact exception deliberately. Cheap wording fix: soften the "không bao giờ" claim to name the two carved-out pure-function exceptions.

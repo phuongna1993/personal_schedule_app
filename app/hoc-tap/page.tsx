@@ -10,6 +10,7 @@ import {
 } from "@/lib/ngayVn";
 import HocTapView from "./HocTapView";
 import {
+  layLichSuDiemBaiTest,
   layLichSuThang,
   layLoTrinh,
   layThangSomNhatHocTap,
@@ -50,19 +51,24 @@ export default async function TrangHocTap({
   // luôn là con số chạy, độc lập tháng đang xem — Boundaries) nên chạy song
   // song, cùng lúc với clamp bên dưới, thay vì đợi tuần tự. `layLoTrinh()`
   // (CAP-13, Story 10) cũng không phụ thuộc `thangXem` — Lộ trình không có
-  // khái niệm "tháng đang xem" — nên gộp chung vào đây.
+  // khái niệm "tháng đang xem" — nên gộp chung vào đây. `layLichSuDiemBaiTest()`
+  // (CAP-12, Story 12) cũng không phụ thuộc `thangXem` — lịch sử Điểm số
+  // không có khái niệm "tháng đang xem", không phân trang (Boundaries) — nên
+  // gộp chung vào đây luôn.
   const [
     thangSomNhat,
     streakTiengAnh,
     streakAutomationTest,
     loTrinhTiengAnh,
     loTrinhAutomationTest,
+    lichSuDiemBaiTest,
   ] = await Promise.all([
     layThangSomNhatHocTap(),
     tinhStreak("TiengAnh"),
     tinhStreak("AutomationTest"),
     layLoTrinh("TiengAnh"),
     layLoTrinh("AutomationTest"),
+    layLichSuDiemBaiTest(),
   ]);
 
   let thangXem = (thangThamSo && tuThamSoThang(thangThamSo)) || thangHienTai;
@@ -132,6 +138,7 @@ export default async function TrangHocTap({
           TiengAnh: loTrinhTiengAnh,
           AutomationTest: loTrinhAutomationTest,
         }}
+        lichSuDiemBaiTest={lichSuDiemBaiTest}
         nhanThang={nhanThang}
         hrefThangTruoc={hrefThangTruoc}
         hrefThangSau={hrefThangSau}

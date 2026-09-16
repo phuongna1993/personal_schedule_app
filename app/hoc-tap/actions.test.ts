@@ -32,6 +32,7 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
     baiTestDanhGia: {
       count: vi.fn(),
       create: vi.fn(),
+      findMany: vi.fn(),
     },
   },
   revalidatePathMock: vi.fn(),
@@ -42,6 +43,11 @@ vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
 const { ghiBuoiHoc, hoanThanhMoc, ghiDiemBaiTest } = await import("./actions");
 const { biChanHoanThanhBoiGateDiem } = await import("./model");
+// `layLichSuDiemBaiTest()` (CAP-12, Story 12) sống ở `./queries`, không phải
+// `./actions` — import riêng để test round-trip ghi/đọc bên dưới, dùng
+// CHUNG `prismaMock` ở trên (cùng module registry của file test này) với
+// `ghiDiemBaiTest()`.
+const { layLichSuDiemBaiTest } = await import("./queries");
 
 const BUOI_HOC_TIENG_ANH_HOP_LE = {
   kyNang: "TiengAnh",
@@ -607,6 +613,67 @@ describe("ghiDiemBaiTest — Two Điểm số entered for the same Mốc", () =>
     if (!lanMot.ok || !lanHai.ok) throw new Error("unreachable");
     expect(lanMot.data.id).not.toBe(lanHai.data.id);
     expect(prismaMock.baiTestDanhGia.create).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Round-trip GHI (`ghiDiemBaiTest()`, `./actions`) -> ĐỌC
+ * (`layLichSuDiemBaiTest()`, `./queries`) — cả hai hàm độc lập hardcode
+ * "luôn và chỉ Tiếng Anh, không nhận tham số kyNang" (Story 10's kỷ luật,
+ * mirror trong Story 12). Test riêng lẻ cho từng hàm không bắt được việc
+ * hai đường GHI/ĐỌC lệch nhau (ví dụ đọc nhầm field, hoặc lệch cách merge
+ * tiêu đề Mốc) — chỉ một round-trip thật mới xác nhận được điều đó.
+ *
+ * `prismaMock.baiTestDanhGia.create`/`findMany` được nối với nhau qua một
+ * mảng in-memory `banGhi`, mô phỏng đúng ngữ nghĩa "findMany đọc lại hàng
+ * vừa create tạo ra" của Prisma thật — không phải hai mock độc lập, không
+ * liên quan tới nhau.
+ */
+describe("Round-trip: ghiDiemBaiTest() -> layLichSuDiemBaiTest()", () => {
+  it("Điểm số ghi qua ghiDiemBaiTest() xuất hiện lại đúng qua layLichSuDiemBaiTest(), gắn đúng Mốc hiện tại", async () => {
+    // Mốc hiện tại giả lập: A2 (thuTu 2) của Tiếng Anh — `layMocHienTai()`'s
+    // kết quả mà cả `ghiDiemBaiTest()` (biên GHI) lẫn `layLichSuDiemBaiTest()`
+    // (biên ĐỌC, qua `include: { moc: { select: { thuTu } } }`) đều phải
+    // thấy CÙNG một Mốc.
+    const MOC_HIEN_TAI = { id: 41, thuTu: 2 };
+    prismaMock.moc.findFirst.mockResolvedValue(MOC_HIEN_TAI);
+
+    const banGhi: { id: number; mocId: number; diemSo: string; ngay: Date }[] =
+      [];
+    prismaMock.baiTestDanhGia.create.mockImplementation(
+      async ({
+        data,
+      }: {
+        data: { mocId: number; diemSo: string; ngay: Date };
+      }) => {
+        const row = { id: banGhi.length + 1, ...data };
+        banGhi.push(row);
+        return row;
+      },
+    );
+    // Mô phỏng đúng hành vi `findMany` thật của Prisma cho query của
+    // `layLichSuDiemBaiTest()`: đọc lại các hàng đã `create()`, kèm
+    // `moc.thuTu` join từ Mốc hiện tại (mọi hàng trong `banGhi` đều gắn
+    // `MOC_HIEN_TAI.id`).
+    prismaMock.baiTestDanhGia.findMany.mockImplementation(async () =>
+      banGhi.map((row) => ({ ...row, moc: { thuTu: MOC_HIEN_TAI.thuTu } })),
+    );
+
+    const ketQuaGhi = await ghiDiemBaiTest("8.5");
+    expect(ketQuaGhi.ok).toBe(true);
+    if (!ketQuaGhi.ok) throw new Error("unreachable");
+    expect(ketQuaGhi.data.mocId).toBe(MOC_HIEN_TAI.id);
+
+    const lichSu = await layLichSuDiemBaiTest();
+
+    expect(lichSu).toHaveLength(1);
+    expect(lichSu[0]).toMatchObject({
+      id: ketQuaGhi.data.id,
+      mocThuTu: MOC_HIEN_TAI.thuTu,
+      mocTen: "A2",
+      diemSo: "8.5",
+    });
+    expect(lichSu[0].ngay).toEqual(ketQuaGhi.data.ngay);
   });
 });
 

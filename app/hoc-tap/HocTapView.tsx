@@ -7,6 +7,7 @@ import { formatNgayVN } from "@/lib/ngayVn";
 import { ghiBuoiHoc, ghiDiemBaiTest, hoanThanhMoc } from "./actions";
 import {
   biChanHoanThanhBoiGateDiem,
+  type DiemBaiTestLichSu,
   KY_NANG,
   type KyNangEnum,
   type LoTrinhDuLieu,
@@ -56,12 +57,19 @@ function formatPhut(soPhut: number): string {
 export default function HocTapView({
   tienDo,
   loTrinh,
+  lichSuDiemBaiTest,
   nhanThang,
   hrefThangTruoc,
   hrefThangSau,
 }: {
   tienDo: Record<KyNangEnum, TienDoKyNang>;
   loTrinh: Record<KyNangEnum, LoTrinhDuLieu>;
+  /** Lịch sử Điểm số Bài test đánh giá (CAP-12, Story 12) — LUÔN của Tiếng
+   * Anh (`layLichSuDiemBaiTest()` không nhận `kyNang`). Chỉ truyền tiếp cho
+   * instance `LoTrinhCot` của Tiếng Anh bên dưới — Automation Test's column
+   * không bao giờ nhận prop này (Boundaries: "structural absence, not
+   * hidden"). */
+  lichSuDiemBaiTest: DiemBaiTestLichSu[];
   nhanThang: string;
   hrefThangTruoc: string | null;
   hrefThangSau: string | null;
@@ -147,6 +155,11 @@ export default function HocTapView({
               key={kyNang}
               kyNang={kyNang}
               loTrinh={loTrinh[kyNang]}
+              // Chỉ truyền cho instance Tiếng Anh — Automation Test's column
+              // luôn nhận `undefined` ở đây, khiến section lịch sử không thể
+              // render nhầm cho nó dù logic bên trong `LoTrinhCot` có đổi
+              // (structural absence, không chỉ validated-away).
+              lichSuDiem={kyNang === "TiengAnh" ? lichSuDiemBaiTest : undefined}
             />
           ))}
         </div>
@@ -321,15 +334,20 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
 /**
  * Một cột Lộ trình của một Kỹ năng (CAP-13) — danh sách Mốc đã Hoàn thành
  * (viewable), thẻ Mốc HIỆN TẠI (`MocHienTaiCard`), rồi các Mốc CÒN LẠI hiển
- * thị mờ (chưa tới lượt, không tương tác được). Không có history list Điểm
- * số ở đây (deferred, xem `deferred-work.md` qua story's Boundaries).
+ * thị mờ (chưa tới lượt, không tương tác được). Với Tiếng Anh, thêm một
+ * section lịch sử Điểm số Bài test đánh giá bên dưới cùng (CAP-12, Story
+ * 12) — `lichSuDiem` chỉ khác `undefined` cho instance Tiếng Anh (truyền từ
+ * `HocTapView`), nên điều kiện `kyNang === "TiengAnh"` dưới đây là một lớp
+ * bảo vệ kép, không phải điều kiện DUY NHẤT quyết định hiển thị.
  */
 function LoTrinhCot({
   kyNang,
   loTrinh,
+  lichSuDiem,
 }: {
   kyNang: KyNangEnum;
   loTrinh: LoTrinhDuLieu;
+  lichSuDiem?: DiemBaiTestLichSu[];
 }) {
   // Type predicate: sau `.filter`, `m.ngayHoanThanh` hẹp đúng về `Date` (thay
   // vì `Date | null`) cho `formatNgayVN()` dưới đây, không cần ép kiểu rời.
@@ -372,6 +390,26 @@ function LoTrinhCot({
           <span className="tname">{m.ten}</span>
         </div>
       ))}
+
+      {kyNang === "TiengAnh" && lichSuDiem ? (
+        <>
+          <p className="field-label">Lịch sử Điểm số Bài test đánh giá</p>
+
+          {lichSuDiem.length === 0 ? (
+            <p className="empty-txt">
+              Chưa có Điểm số Bài test đánh giá nào.
+            </p>
+          ) : (
+            lichSuDiem.map((d) => (
+              <div className="task-row" key={d.id}>
+                <span className="tname">
+                  {d.mocTen} — {d.diemSo} ({formatNgayVN(d.ngay)})
+                </span>
+              </div>
+            ))
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

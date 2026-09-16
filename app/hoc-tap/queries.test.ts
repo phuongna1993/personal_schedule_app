@@ -28,6 +28,7 @@ const { prismaMock } = vi.hoisted(() => ({
     },
     baiTestDanhGia: {
       count: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -42,6 +43,7 @@ const {
   damBaoMocDaKhoiTao,
   layMocHienTai,
   layLoTrinh,
+  layLichSuDiemBaiTest,
 } = await import("./queries");
 
 beforeEach(() => {
@@ -501,5 +503,116 @@ describe("layLoTrinh", () => {
     expect(loTrinh.mocHienTaiId).toBeNull();
     expect(prismaMock.baiTestDanhGia.count).not.toHaveBeenCalled();
     expect(loTrinh.moc.every((m) => m.coDiemBaiTest === false)).toBe(true);
+  });
+});
+
+/**
+ * Unit test cho `layLichSuDiemBaiTest()` (CAP-12, Story 12) — mọi hàng ở
+ * I/O & Edge-Case Matrix của story (12-xem-lich-su-diem-bai-test.md).
+ */
+describe("layLichSuDiemBaiTest", () => {
+  it("No Điểm số ever entered: trả mảng rỗng, không throw", async () => {
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([]);
+
+    expect(await layLichSuDiemBaiTest()).toEqual([]);
+  });
+
+  it("One Điểm số entered: trả đúng Mốc title + điểm + ngày, lọc đúng kyNang TiengAnh qua where.moc", async () => {
+    const ngay = new Date("2026-09-10T00:00:00.000Z");
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([
+      { id: 1, diemSo: "8.0", ngay, moc: { thuTu: 1 } },
+    ]);
+
+    const ketQua = await layLichSuDiemBaiTest();
+
+    expect(prismaMock.baiTestDanhGia.findMany).toHaveBeenCalledWith({
+      where: { moc: { kyNang: "TiengAnh" } },
+      include: { moc: { select: { thuTu: true } } },
+      orderBy: [{ ngay: "desc" }, { id: "desc" }],
+    });
+    expect(ketQua).toEqual([
+      { id: 1, mocThuTu: 1, mocTen: "A1", diemSo: "8.0", ngay },
+    ]);
+  });
+
+  it("Multiple Điểm số for the same Mốc (retakes): cả hai hàng đều xuất hiện, không bị merge/hidden", async () => {
+    const moiHon = new Date("2026-09-15T00:00:00.000Z");
+    const cuHon = new Date("2026-09-01T00:00:00.000Z");
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([
+      { id: 2, diemSo: "8.5", ngay: moiHon, moc: { thuTu: 1 } },
+      { id: 1, diemSo: "7.0", ngay: cuHon, moc: { thuTu: 1 } },
+    ]);
+
+    const ketQua = await layLichSuDiemBaiTest();
+
+    expect(ketQua).toHaveLength(2);
+    expect(ketQua[0].id).toBe(2);
+    expect(ketQua[1].id).toBe(1);
+  });
+
+  it("Same ngay tie-break: hai hàng CÙNG CHÍNH XÁC một ngay — orderBy gửi cho Prisma gồm cả { id: \"desc\" }, và hàm map giữ NGUYÊN thứ tự Prisma trả về (không tự sắp xếp lại)", async () => {
+    const ngayChung = new Date("2026-09-10T00:00:00.000Z");
+    // Prisma THẬT sẽ tự resolve tie-break bằng { id: "desc" } — mô phỏng kết
+    // quả đó bằng cách trả id lớn hơn trước, dù `ngay` giống hệt nhau.
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([
+      { id: 5, diemSo: "9.0", ngay: ngayChung, moc: { thuTu: 1 } },
+      { id: 4, diemSo: "7.5", ngay: ngayChung, moc: { thuTu: 1 } },
+    ]);
+
+    const ketQua = await layLichSuDiemBaiTest();
+
+    expect(prismaMock.baiTestDanhGia.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ ngay: "desc" }, { id: "desc" }],
+      }),
+    );
+    expect(ketQua.map((d) => d.id)).toEqual([5, 4]);
+  });
+
+  it("thuTu 3 (B1): title merge từ MOC_TIENG_ANH đúng cho Mốc cuối cùng, không chỉ 1 (A1)/2 (A2)", async () => {
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([
+      {
+        id: 1,
+        diemSo: "8.0",
+        ngay: new Date("2026-09-01T00:00:00.000Z"),
+        moc: { thuTu: 3 },
+      },
+    ]);
+
+    const ketQua = await layLichSuDiemBaiTest();
+
+    expect(ketQua[0]).toMatchObject({ mocThuTu: 3, mocTen: "B1" });
+  });
+
+  it("Điểm số entered across several completed Mốc: mỗi hàng gắn đúng tiêu đề Mốc của chính nó", async () => {
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([
+      {
+        id: 2,
+        diemSo: "6.5",
+        ngay: new Date("2026-08-01T00:00:00.000Z"),
+        moc: { thuTu: 2 },
+      },
+      {
+        id: 1,
+        diemSo: "9.0",
+        ngay: new Date("2026-07-01T00:00:00.000Z"),
+        moc: { thuTu: 1 },
+      },
+    ]);
+
+    const ketQua = await layLichSuDiemBaiTest();
+
+    expect(ketQua[0]).toMatchObject({ mocThuTu: 2, mocTen: "A2" });
+    expect(ketQua[1]).toMatchObject({ mocThuTu: 1, mocTen: "A1" });
+  });
+
+  it("không nhận tham số kyNang — luôn hardcode lọc TiengAnh, không có cách nào gọi cho AutomationTest", async () => {
+    prismaMock.baiTestDanhGia.findMany.mockResolvedValue([]);
+
+    await layLichSuDiemBaiTest();
+
+    expect(prismaMock.baiTestDanhGia.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { moc: { kyNang: "TiengAnh" } } }),
+    );
   });
 });

@@ -147,6 +147,26 @@ export type BaiTestDanhGiaDaGhi = {
 };
 
 /**
+ * Một hàng trong lịch sử Điểm số Bài test đánh giá (CAP-12, Story 12) —
+ * LUÔN của Tiếng Anh (Boundaries: `layLichSuDiemBaiTest()` không nhận tham
+ * số `kyNang`, hardcode Tiếng Anh, mirror `ghiDiemBaiTest()`). Khác
+ * `BaiTestDanhGiaDaGhi` ở chỗ mang sẵn `mocThuTu`/`mocTen` đã merge từ
+ * `MOC_TIENG_ANH` (đọc lại toàn bộ lịch sử cần biết Mốc nào, không chỉ
+ * `mocId`) — không tái dùng lại type đó để tránh hai hình dạng khác nhau bị
+ * lẫn lộn.
+ */
+export type DiemBaiTestLichSu = {
+  id: number;
+  mocThuTu: number;
+  mocTen: string;
+  /** Free-form text, định dạng cố ý để ngỏ (mirror `BaiTestDanhGia.diemSo`'s
+   * schema comment, ARCHITECTURE-SPINE.md's Deferred) — KHÔNG phải một điểm
+   * số numeric đã chuẩn hoá, không parse/so sánh số học ở đây. */
+  diemSo: string;
+  ngay: Date;
+};
+
+/**
  * Nút "Hoàn thành Mốc" có bị GATE chặn hay không — CHỈ Tiếng Anh mới có gate
  * (Automation Test luôn `false`, bất kể `coDiemBaiTest`, mirror
  * `hoanThanhMoc()`'s server-side rule ở `actions.ts`).
