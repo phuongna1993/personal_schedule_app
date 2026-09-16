@@ -2,6 +2,72 @@
 
 Append-only. Each entry is a real issue surfaced during a story's review that is not this story's problem to fix now.
 
+## Triage index (added 2026-09-16, after Story 11 — reorganization only, no entries below were edited)
+
+45 entries have accumulated across Stories 1–11. Most are deliberate, low-priority accepts for a single-user local app (AD-5); a handful are the *same* gap re-flagged story after story and are grouped here so a future pass can fix each pattern once instead of re-discovering it. Line numbers point at the first full entry text below — search for the `summary:` snippet quoted here to jump to every occurrence.
+
+**A. Recurring code patterns — worth one shared fix across every screen, not a per-story patch**
+- Shared `useTransition` blocks a whole row/list during any single row's pending action — flagged 3×: Story 1 (`TrinhSoanThaoMau`), Story 2 (`LichTrinhNgayView`), Story 3 (`ChiTieuView`). Later modules (6+) already use the correct per-row-keyed pattern — mirror that back onto these three.
+- No re-entrancy guard on rapid double-submit — flagged in Story 3 (Giao dịch/Danh mục form), Story 8 (`KyNangForm`), Story 10 (Lưu điểm số / Hoàn thành Mốc buttons).
+- Vietnamese-diacritic-aware sorting missing (SQLite binary collation, or JS `localeCompare()` with no `"vi"` locale) — Story 5 (`layBaoCaoThang`), Story 6 (`layDanhSachNguyenLieuDuyNhat`).
+- No DB-level CHECK constraints backing Server-Action-only validation ("defense-in-depth, not reachable through any current write path") — Story 1 (`Task.ten`/`mucUuTien`), Story 3 (`GiaoDich` invariants), Story 4 (`NganSach.thang`), Story 8/9/10 (`kyNang` fallbacks, unreachable branches, `hanMuc<=0` guards). 6+ occurrences, all the same accepted class.
+- Accessibility Floor gaps (missing `aria-describedby`/`aria-live`/`aria-pressed`/`aria-current`, skipped heading levels, no focus management after async updates) — Story 1, 3, 4, 6, 7, 10. Explicitly deferred since Story 1 to "one pass across all screens once more of them exist" — that condition is now true (11 screens exist).
+- No component-level test infra (no jsdom/testing-library anywhere) — Story 1, 7, 8, 9, 10, 11. Affects every client component's interaction logic; the workaround used successfully in Stories 10-11 (extract branching logic into small pure functions in `model.ts` and unit-test those) is the cheapest mitigation without adding new infra.
+- No `error.tsx`/try-catch on any read path — Story 6 (Verification Gap, confirmed pre-existing across chi-tieu/lich-trinh/thuc-don), Story 9, Story 11 (elevated stakes now that `/` is the sole entry point).
+- Low-probability concurrent-write races specific to a single-user app (stale props across tabs, TOCTOU on delete-then-reference, multi-`Promise.all`-batch consistency) — Story 3, 4, 6, 7, 9, 10. Consistently accepted given AD-5; not worth fixing unless multi-device/multi-session use is ever added.
+
+**B. Confirmed real bugs/gaps worth a dedicated look (not urgent, not theoretical)**
+- `taoLichTrinhNgayTuMau()` throws a Next.js "used revalidatePath during render" error on the first render of a new day (Story 11) — reproduced on both `/lich-trinh` and `/`; the underlying write still succeeds, but a misleading error is logged daily.
+- No way to clear an already-set value back to "unset" — Story 4 (Ngân sách hạn mức), Story 6 (Món ăn/Nguyên liệu photo).
+- No duplicate-name prevention — Story 3 (Danh mục chi tiêu), Story 6 (Món ăn).
+- Broken/orphaned upload handling — Story 6: no `onError` fallback for a missing image file, no cleanup of replaced/failed-write photos.
+
+**C. Deliberate scope cuts — candidate future stories, not bugs**
+- Multi-Món-ăn-per-meal-slot (Story 7 → deferred, single-dish-per-slot shipped instead).
+- "Lịch sử Điểm số Bài test đánh giá" full history view for Tiếng Anh (deferred Story 9 → Story 10 → still not built; `BaiTestDanhGia` already supports it, no new schema needed).
+- Full inline Dashboard interactivity matching the mock (quick-add sheet, inline Thực đơn/Buổi học/Task editing) — Story 11, narrowed twice to a read-only hub.
+
+**D. Cosmetic/copy polish (low value, no correctness impact)**
+- Theme-toggle icon flash + missing `suppressHydrationWarning` (Story 1); amount-input cursor jumps to end on every keystroke (Story 3); duplicate-looking totals shown twice on one screen with no explanation (Story 5); ambiguous "tháng này" wording without the actual month/year (Story 4); alert banners with no scroll-into-view (Story 4); a few under-specified empty-state messages that don't disambiguate their underlying cause (Story 5, 9).
+
+---
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `app/hoc-tap/queries.ts:17-19`'s re-export comment claims `model.ts` is "không bao giờ" (never) imported directly by the aggregation layer, which `app/DashboardView.tsx:6` (`laChuaCoHoatDongHocTap`) immediately contradicts.
+  evidence: Epic retrospective, Architecture delta finding. Self-contradicting comment, not a functional defect — `DashboardView.tsx`'s own comment at lines 10-20 already documents this exact exception deliberately. Cheap wording fix: soften the "không bao giờ" claim to name the two carved-out pure-function exceptions.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `formatTien()` (`app/chi-tieu/ChiTieuView.tsx:54-55`), an identical copy in `app/DashboardView.tsx:48-49`, and `formatPhut()` (`app/hoc-tap/HocTapView.tsx:38-39`) are three one-line number-formatting functions with the same body (`toLocaleString("vi-VN")`) instead of one shared `lib/` helper.
+  evidence: Epic retrospective, Duplication map finding (delegated subagent, confirmed via file:line on all three). Zero behavioral risk, pure DRY cleanup.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: Threshold/validation constants duplicated across module boundaries, not just within one module: the Int32-overflow guard `2_147_483_647` is separately declared as `SO_TIEN_TOI_DA` (`app/chi-tieu/actions.ts:40`) and `THOI_LUONG_TOI_DA` (`app/hoc-tap/actions.ts:34`); `DO_DAI_GHI_CHU_TOI_DA = 200` is declared identically (same name, same value) in both `app/chi-tieu/actions.ts:43` and `app/thuc-don/actions.ts:495`.
+  evidence: Epic retrospective, Duplication map finding. Same class of gap already caught and fixed once *within* Chi tiêu (the 30%-threshold constants, Story 11 review, consolidated into `app/chi-tieu/model.ts`) — recurs *across* modules here, uncaught until this epic-wide retro because no single story's review compares its new constants against sibling modules.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `app/hoc-tap/actions.ts:208` uses error code `MOC_KHONG_TON_TAI` for a "fetch primary entity by id for update, not found" case — every earlier module uses `KHONG_TIM_THAY_<ENTITY>` for that exact scenario and reserves `_KHONG_TON_TAI` for validating a foreign reference before attaching it (a different scenario).
+  evidence: Epic retrospective, Pattern divergence finding (delegated subagent, cross-referenced `xacNhanDanhMucTonTai`/`xacNhanMonAnTonTai` as the established foreign-reference-check convention). Naming-only, no functional impact.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `model.ts` type-naming drift — `app/thuc-don/model.ts`'s `BuoiEnum` and `app/hoc-tap/model.ts`'s `KyNangEnum` add an "Enum" suffix that `app/lich-trinh/model.ts`'s `MucUuTien` and `app/chi-tieu/model.ts`'s `LoaiGiaoDich` don't use; `thuc-don/model.ts` is inconsistent with itself (`LoaiAnhHopLe` has no suffix in the same file as `BuoiEnum`).
+  evidence: Epic retrospective, Pattern divergence finding. Cosmetic naming drift, no functional impact.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: Vietnamese-rooted CSS class names (`.nhan-uu-tien`, Story 1-2) disappear for Stories 3-9 (purely English kebab-case: `.badge-pri`, `.cat-chip`, `.dish-card`) then reappear in Story 10 (`.moc-future`, `.moc-current`).
+  evidence: Epic retrospective, Pattern divergence finding. Cosmetic, zero functional impact, low priority.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `app/chi-tieu/ChiTieuView.tsx` (835 lines, grew across Stories 3/4/5) and `app/thuc-don/chon-mon/NganHangMonAnView.tsx` (780 lines, Stories 6/7) have each accumulated 2-3 stories' worth of distinct concerns into one file — internally split into separate functions, but never split into separate files.
+  evidence: Epic retrospective, God-component growth view (derived from `git_evidence.py`'s per-file churn plus current size/structure). No file is unmanageably large yet; worth a threshold-based splitting convention if the app keeps growing.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: Several Story-11-integration-layer UX papercuts found in the epic-wide adversarial review, none individually urgent: a long Thực đơn ghi-chú note has no CSS truncation inside a dense `.cat-chip` on the dashboard row (`app/DashboardView.tsx:321`); `/` (the sole entry point) renders no `<h1>` element unlike every other route (`DashboardView.tsx:111`); `app/chi-tieu/page.tsx:34` and `app/thuc-don/chon-mon/page.tsx:23` still carry a stale "Story 11 chưa build" doc comment, and none of the 4 module pages link back to `/`; the Dashboard's budget-alert summary has no persistent equivalent on the `/chi-tieu` page it links to, so the alert list a user just saw disappears on navigation.
+  evidence: Epic retrospective, adversarial lens findings #5, #6, #7, #10 (`bmad-review`, weighted toward the Story 11 cross-module boundary). Consolidated into one batch entry since each is a small, independent polish item on the same new page.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/RETROSPECTIVE.md`
+  summary: `DashboardView.tsx`'s terminal "Đã hoàn thành Lộ trình" state (`:410`) drops streak visibility entirely even when the user keeps logging sessions after finishing a Kỹ năng's roadmap — unlike the active-Mốc branch, which shows the streak badge.
+  evidence: Epic retrospective, adversarial lens finding #8. Secondary to the two other `DongKyNang`/`laChuaCoHoatDongHocTap` findings routed as fix-now action items; bundle into the same future fix pass on that component.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/1-mau-lich-trinh.md`
   summary: Accessibility Floor gaps beyond what Story 1 implemented (aria-invalid/aria-describedby missing on the thoiHan input and priority radiogroup, inputs stay editable mid-submit, no live-region announcement when a Task is added/deleted).
   evidence: EXPERIENCE.md's Accessibility Floor is an adopted companion the spec commits to matching; better tackled as one pass across all screens once more of them exist than piecemeal per story.

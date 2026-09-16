@@ -3,17 +3,16 @@ import NutDoiTheme from "@/app/NutDoiTheme";
 import { formatNgayVN, thamSoNgayVN } from "@/lib/ngayVn";
 import { type CanhBaoNganSach, xacDinhTrangThaiNganSach } from "./chi-tieu/model";
 import type { KyNangEnum, LoTrinhDuLieu } from "./hoc-tap/queries";
-import { laChuaCoHoatDongHocTap } from "./hoc-tap/model";
 import type { LichTrinhNgayDuLieu, MucUuTien } from "./lich-trinh/queries";
 import type { ThucDonNgayDuLieu } from "./thuc-don/queries";
 
 /**
- * `xacDinhTrangThaiNganSach()`/`laChuaCoHoatDongHocTap()` là ngoại lệ có chủ
- * đích, đã qua review, với quy tắc "chỉ import queries.ts của module khác"
- * (Boundaries) — hai hàm THUẦN này (không chạm Prisma) mirror đúng cách
- * `biChanHoanThanhBoiGateDiem()` được tách vào `app/hoc-tap/model.ts` ở Story
- * 10: bất biến hiển thị quan trọng của một thẻ, cần unit-test trực tiếp vì
- * repo không có hạ tầng test component.
+ * `xacDinhTrangThaiNganSach()` là ngoại lệ có chủ đích, đã qua review, với
+ * quy tắc "chỉ import queries.ts của module khác" (Boundaries) — hàm THUẦN
+ * này (không chạm Prisma) mirror đúng cách `biChanHoanThanhBoiGateDiem()`
+ * được tách vào `app/hoc-tap/model.ts` ở Story 10: bất biến hiển thị quan
+ * trọng của một thẻ, cần unit-test trực tiếp vì repo không có hạ tầng test
+ * component.
  *
  * Hằng số hiển thị bên dưới vẫn CỤC BỘ (không import từ `model.ts` của module
  * khác) — chỉ lặp lại đúng phần CHỮ đã cố định trong Glossary, không lặp lại
@@ -100,7 +99,10 @@ export default function DashboardView({
   canhBaoNganSach: CanhBaoNganSach[];
   ngayMai: Date;
   thucDon: ThucDonNgayDuLieu;
-  hocTap: Record<KyNangEnum, { streak: number; loTrinh: LoTrinhDuLieu }>;
+  hocTap: Record<
+    KyNangEnum,
+    { streak: number; loTrinh: LoTrinhDuLieu; daTungCoBuoiHoc: boolean }
+  >;
 }) {
   const { text: loiChao, icon: iconChao } = loiChaoTheoGio();
 
@@ -147,7 +149,13 @@ const SO_TASK_HIEN_TOI_DA = 5;
 function TheLichTrinh({ lichTrinh }: { lichTrinh: LichTrinhNgayDuLieu }) {
   const { tasks, soDaXong, tongSo } = lichTrinh;
   const phanTram = tongSo === 0 ? 0 : Math.round((soDaXong / tongSo) * 100);
-  const hienThi = tasks.slice(0, SO_TASK_HIEN_TOI_DA);
+  // Task CHƯA xong luôn hiện trước Task đã xong trong danh sách bị cắt —
+  // sort ổn định (giữ nguyên thứ tự thoiHan/id trong từng nhóm) chỉ đổi chỗ
+  // theo daXong, tránh việc 5 Task ĐÃ xong sớm nhất trong ngày che mất những
+  // Task CHƯA xong muộn hơn (mục đích của thẻ là "còn gì phải làm hôm nay").
+  const hienThi = [...tasks]
+    .sort((a, b) => Number(a.daXong) - Number(b.daXong))
+    .slice(0, SO_TASK_HIEN_TOI_DA);
   const conLai = tasks.length - hienThi.length;
 
   return (
@@ -210,6 +218,8 @@ function TheLichTrinh({ lichTrinh }: { lichTrinh: LichTrinhNgayDuLieu }) {
   );
 }
 
+const SO_CANH_BAO_HIEN_TOI_DA = 5;
+
 /** Thẻ Chi tiêu — CAP-6, ba trạng thái phân biệt theo I/O matrix của story:
  * chưa đặt Ngân sách / đã đặt và lành mạnh / có ít nhất một cảnh báo. */
 function TheChiTieu({
@@ -220,6 +230,11 @@ function TheChiTieu({
   canhBaoNganSach: CanhBaoNganSach[];
 }) {
   const trangThai = xacDinhTrangThaiNganSach(coNganSachThangNay, canhBaoNganSach);
+  // Mirror TheLichTrinh's cắt-danh-sách-còn-đếm-phần-dư — một người dùng với
+  // nhiều Danh mục cùng vượt ngưỡng trong một tháng không được phép làm thẻ
+  // này cao vô hạn, phá vỡ bố cục "một lượt quét mắt" của cả 4 thẻ.
+  const canhBaoHienThi = canhBaoNganSach.slice(0, SO_CANH_BAO_HIEN_TOI_DA);
+  const canhBaoConLai = canhBaoNganSach.length - canhBaoHienThi.length;
 
   return (
     <section className="card" aria-labelledby="tieu-de-chi-tieu-hom-nay">
@@ -236,9 +251,14 @@ function TheChiTieu({
           <p className="txt">Mọi Danh mục đang trong hạn mức tháng này.</p>
         </div>
       ) : (
-        canhBaoNganSach.map((canhBao) => (
-          <KhoiCanhBaoDanhMuc key={canhBao.danhMucChiTieuId} canhBao={canhBao} />
-        ))
+        <>
+          {canhBaoHienThi.map((canhBao) => (
+            <KhoiCanhBaoDanhMuc key={canhBao.danhMucChiTieuId} canhBao={canhBao} />
+          ))}
+          {canhBaoConLai > 0 ? (
+            <p className="empty-txt">+ {canhBaoConLai} Danh mục khác đang cảnh báo</p>
+          ) : null}
+        </>
       )}
 
       <Link className="link-add" href="/chi-tieu">
@@ -353,7 +373,10 @@ function TheThucDon({
 function TheHocTap({
   hocTap,
 }: {
-  hocTap: Record<KyNangEnum, { streak: number; loTrinh: LoTrinhDuLieu }>;
+  hocTap: Record<
+    KyNangEnum,
+    { streak: number; loTrinh: LoTrinhDuLieu; daTungCoBuoiHoc: boolean }
+  >;
 }) {
   return (
     <section className="card" aria-labelledby="tieu-de-hoc-tap-hom-nay">
@@ -376,26 +399,11 @@ function DongKyNang({
   tienDo,
 }: {
   kyNang: KyNangEnum;
-  tienDo: { streak: number; loTrinh: LoTrinhDuLieu };
+  tienDo: { streak: number; loTrinh: LoTrinhDuLieu; daTungCoBuoiHoc: boolean };
 }) {
-  const { streak, loTrinh } = tienDo;
+  const { streak, loTrinh, daTungCoBuoiHoc } = tienDo;
 
-  // Xấp xỉ "chưa từng ghi Buổi học nào" chỉ từ hai hàm đọc ĐƯỢC PHÉP gọi ở
-  // đây (`tinhStreak()`/`layLoTrinh()`, Code Map — không có hàm đọc lịch sử
-  // BuoiHoc nào khác được gọi từ Hôm nay). Logic thực tế nằm trong
-  // `laChuaCoHoatDongHocTap()` (`app/hoc-tap/model.ts`) — hàm thuần, unit-test
-  // trực tiếp được.
-  const chuaTungHoanThanhMoc = loTrinh.moc.every(
-    (m) => m.ngayHoanThanh === null,
-  );
-  const dangOMocDauTien = loTrinh.mocHienTaiId === loTrinh.moc[0]?.id;
-  const chuaCoHoatDong = laChuaCoHoatDongHocTap(
-    streak,
-    chuaTungHoanThanhMoc,
-    dangOMocDauTien,
-  );
-
-  if (chuaCoHoatDong) {
+  if (!daTungCoBuoiHoc) {
     return (
       <div className="budget-card">
         <h4>{NHAN_KY_NANG_HOM_NAY[kyNang]}</h4>
@@ -429,8 +437,15 @@ function DongKyNang({
           </p>
         </div>
         <div className="pct-big">
-          🔥{streak}
-          <span className="lbl">ngày</span>
+          {streak > 0 ? (
+            <>
+              <span aria-hidden="true">🔥</span>
+              {streak}
+              <span className="lbl">ngày</span>
+            </>
+          ) : (
+            <span className="lbl">Chưa có streak</span>
+          )}
         </div>
       </div>
     </div>

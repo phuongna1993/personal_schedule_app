@@ -5,7 +5,7 @@ import {
   layCanhBaoNganSachHienTai,
   layDanhMucVoiHanMucThangHienTai,
 } from "./chi-tieu/queries";
-import { tinhStreak, layLoTrinh } from "./hoc-tap/queries";
+import { laDaTungCoBuoiHoc, layLoTrinh, tinhStreak } from "./hoc-tap/queries";
 import { taoLichTrinhNgayTuMau } from "./lich-trinh/actions";
 import { layLichTrinhNgay } from "./lich-trinh/queries";
 import { layThucDonNgay } from "./thuc-don/queries";
@@ -31,15 +31,17 @@ export const dynamic = "force-dynamic";
  * này ngoài `taoLichTrinhNgayTuMau()` (AD-3 ngoại lệ 2 — khởi tạo ngầm Lịch
  * trình HÔM NAY trong đường đọc, mirror `app/lich-trinh/page.tsx`).
  *
- * Ba trong bốn module KHÔNG cần đọc gì mới (Design Notes của story): Lịch
- * trình dùng `layLichTrinhNgay()` (HÔM NAY) nguyên trạng, Thực đơn dùng
- * `layThucDonNgay()` (NGÀY MAI) nguyên trạng, Học tập dùng `tinhStreak()` +
- * `layLoTrinh()` nguyên trạng cho cả hai Kỹ năng. Chi tiêu là module duy nhất
- * có đọc mới: `layCanhBaoNganSachHienTai()` (Story 11) — cộng thêm
+ * Hai trong bốn module KHÔNG cần đọc gì mới: Lịch trình dùng
+ * `layLichTrinhNgay()` (HÔM NAY) nguyên trạng, Thực đơn dùng `layThucDonNgay()`
+ * (NGÀY MAI) nguyên trạng. Chi tiêu và Học tập mỗi module có thêm một đọc mới:
+ * Chi tiêu dùng `layCanhBaoNganSachHienTai()` (Story 11) cộng
  * `layDanhMucVoiHanMucThangHienTai()` (đã có từ Story 4) chỉ để phân biệt
  * "chưa đặt Ngân sách nào" khỏi "đã đặt nhưng mọi Danh mục đều lành mạnh",
  * hai trạng thái mà `layCanhBaoNganSachHienTai()` một mình không phân biệt
- * được (mảng rỗng khớp cả hai — I/O matrix).
+ * được (mảng rỗng khớp cả hai — I/O matrix). Học tập dùng `tinhStreak()` +
+ * `layLoTrinh()` nguyên trạng cho cả hai Kỹ năng, cộng `laDaTungCoBuoiHoc()`
+ * (retro fix sau Story 11 — thay phép xấp xỉ "chưa có hoạt động" suy từ
+ * streak/Mốc bằng một tín hiệu chính xác, xem `app/hoc-tap/queries.ts`).
  */
 export default async function TrangHomNay() {
   await taoLichTrinhNgayTuMau();
@@ -56,6 +58,8 @@ export default async function TrangHomNay() {
     streakAutomationTest,
     loTrinhTiengAnh,
     loTrinhAutomationTest,
+    daTungCoBuoiHocTiengAnh,
+    daTungCoBuoiHocAutomationTest,
   ] = await Promise.all([
     layLichTrinhNgay(),
     layDanhMucVoiHanMucThangHienTai(),
@@ -65,6 +69,8 @@ export default async function TrangHomNay() {
     tinhStreak("AutomationTest"),
     layLoTrinh("TiengAnh"),
     layLoTrinh("AutomationTest"),
+    laDaTungCoBuoiHoc("TiengAnh"),
+    laDaTungCoBuoiHoc("AutomationTest"),
   ]);
 
   return (
@@ -77,10 +83,15 @@ export default async function TrangHomNay() {
         ngayMai={ngayMai}
         thucDon={thucDon}
         hocTap={{
-          TiengAnh: { streak: streakTiengAnh, loTrinh: loTrinhTiengAnh },
+          TiengAnh: {
+            streak: streakTiengAnh,
+            loTrinh: loTrinhTiengAnh,
+            daTungCoBuoiHoc: daTungCoBuoiHocTiengAnh,
+          },
           AutomationTest: {
             streak: streakAutomationTest,
             loTrinh: loTrinhAutomationTest,
+            daTungCoBuoiHoc: daTungCoBuoiHocAutomationTest,
           },
         }}
       />

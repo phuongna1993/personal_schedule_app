@@ -123,6 +123,23 @@ export async function tinhStreak(kyNang: KyNangEnum): Promise<number> {
   return streak;
 }
 
+/**
+ * Đã từng có ÍT NHẤT một `BuoiHoc` nào cho Kỹ năng này chưa — tín hiệu
+ * "đã từng hoạt động" CHÍNH XÁC cho thẻ Học tập ở Hôm nay (Story 11 retro
+ * fix), thay cho phép xấp xỉ trước đó suy từ streak/Mốc (có thể sai với một
+ * người dùng thật sự tích cực: streak vừa đứt 1-2 ngày nhưng vẫn còn lịch sử
+ * BuoiHoc thật). Lọc cứng theo `kyNang` — hai Kỹ năng độc lập hoàn toàn
+ * (Boundaries), mirror `layThangSomNhatHocTap()`'s null-check nhưng scoped
+ * đúng một Kỹ năng thay vì gộp cả hai.
+ */
+export async function laDaTungCoBuoiHoc(kyNang: KyNangEnum): Promise<boolean> {
+  const mot = await prisma.buoiHoc.findFirst({
+    where: { kyNang },
+    select: { id: true },
+  });
+  return mot !== null;
+}
+
 // ---------------------------------------------------------------------------
 // Lộ trình & Mốc (CAP-13, Story 10)
 // ---------------------------------------------------------------------------
