@@ -222,12 +222,53 @@ function TienDoCot({
 
 type DuLieuForm = {
   noiDung: string;
-  /** `""` nghĩa là ô thời lượng đang trống. */
-  thoiLuongPhut: string;
+  /** `"HH:mm"` (value gốc của `<input type="time">`), hoặc `""` khi ô đang
+   * trống. Story 13 — client gửi thẳng hai mốc giờ này, không tự trừ; server
+   * là nơi DUY NHẤT tính `thoiLuongPhut` (`kiemTraBuoiHoc()`,
+   * `app/hoc-tap/actions.ts`). */
+  gioBatDau: string;
+  gioKetThuc: string;
 };
 
 function formTrong(): DuLieuForm {
-  return { noiDung: "", thoiLuongPhut: "" };
+  return { noiDung: "", gioBatDau: "", gioKetThuc: "" };
+}
+
+/** `"HH:mm"`, 24 giờ — mirror `REGEX_GIO` ở `app/hoc-tap/actions.ts`. Value
+ * gốc của `<input type="time">` đã tự đúng dạng này; regex ở đây chỉ là một
+ * guard phòng hờ cho việc hiển thị, không phải nguồn kiểm tra chính thức. */
+const REGEX_GIO_XEM_TRUOC = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+type XemTruocThoiLuong =
+  | { trangThai: "chua-du" }
+  | { trangThai: "hop-le"; phut: number }
+  | { trangThai: "khong-hop-le" };
+
+/**
+ * Xem trước thời lượng CHỈ ĐỂ HIỂN THỊ (UX) — mirror đúng rule cùng-ngày của
+ * `kiemTraBuoiHoc()` (`app/hoc-tap/actions.ts`) để người dùng thấy ngay
+ * "= X phút" hoặc lời nhắc trong lúc chọn giờ, thay vì chỉ biết sau khi
+ * submit thất bại. Giá trị này KHÔNG BAO GIỜ được gửi lên server — `gui()`
+ * bên dưới vẫn chỉ gửi hai chuỗi `gioBatDau`/`gioKetThuc` thô, server tự
+ * tính lại hoàn toàn độc lập, không tin bất cứ giá trị nào tính sẵn ở client
+ * (Boundaries: "never trust client-computed values").
+ */
+function xemTruocThoiLuong(
+  gioBatDau: string,
+  gioKetThuc: string,
+): XemTruocThoiLuong {
+  if (gioBatDau.length === 0 || gioKetThuc.length === 0) {
+    return { trangThai: "chua-du" };
+  }
+
+  const khopBatDau = REGEX_GIO_XEM_TRUOC.exec(gioBatDau);
+  const khopKetThuc = REGEX_GIO_XEM_TRUOC.exec(gioKetThuc);
+  if (!khopBatDau || !khopKetThuc) return { trangThai: "chua-du" };
+
+  const batDauPhut = Number(khopBatDau[1]) * 60 + Number(khopBatDau[2]);
+  const ketThucPhut = Number(khopKetThuc[1]) * 60 + Number(khopKetThuc[2]);
+  if (ketThucPhut <= batDauPhut) return { trangThai: "khong-hop-le" };
+  return { trangThai: "hop-le", phut: ketThucPhut - batDauPhut };
 }
 
 function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
@@ -236,6 +277,9 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
   const [daLuu, setDaLuu] = useState(false);
   const [dangGui, batDau] = useTransition();
   const idForm = useId();
+
+  // Chỉ để hiển thị — xem "Boundaries" ở JSDoc của `xemTruocThoiLuong()`.
+  const xemTruoc = xemTruocThoiLuong(gia.gioBatDau, gia.gioKetThuc);
 
   function gui(suKien: React.FormEvent<HTMLFormElement>) {
     suKien.preventDefault();
@@ -247,8 +291,10 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
         const ketQua = await ghiBuoiHoc({
           kyNang,
           noiDung: gia.noiDung,
-          thoiLuongPhut:
-            gia.thoiLuongPhut.length === 0 ? 0 : Number(gia.thoiLuongPhut),
+          // Gửi thẳng hai chuỗi "HH:mm" thô — không trừ ở client (Boundaries:
+          // "the server is the sole source of truth" cho thời lượng).
+          gioBatDau: gia.gioBatDau,
+          gioKetThuc: gia.gioKetThuc,
         });
         if (ketQua.ok) {
           // Một-cú-bấm-là-xong, không có bước xác nhận thứ hai — form clear
@@ -291,24 +337,54 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
           }}
         />
 
-        <div id={`${idForm}-nhan-thoi-luong`} className="field-label">
-          Thời lượng (phút)
+        <p className="group-sub">
+          Giờ bắt đầu và giờ kết thúc phải cùng một ngày — chưa hỗ trợ buổi
+          học qua đêm.
+        </p>
+
+        <div className="form-row">
+          <div className="field narrow">
+            <div id={`${idForm}-nhan-gio-bat-dau`} className="field-label">
+              Giờ bắt đầu
+            </div>
+            <input
+              className="note-field"
+              type="time"
+              aria-labelledby={`${idForm}-nhan-gio-bat-dau`}
+              aria-invalid={loi?.field === "gioBatDau" || undefined}
+              value={gia.gioBatDau}
+              onChange={(e) => {
+                setDaLuu(false);
+                setGia((truoc) => ({ ...truoc, gioBatDau: e.target.value }));
+              }}
+            />
+          </div>
+          <div className="field narrow">
+            <div id={`${idForm}-nhan-gio-ket-thuc`} className="field-label">
+              Giờ kết thúc
+            </div>
+            <input
+              className="note-field"
+              type="time"
+              aria-labelledby={`${idForm}-nhan-gio-ket-thuc`}
+              aria-invalid={loi?.field === "gioKetThuc" || undefined}
+              value={gia.gioKetThuc}
+              onChange={(e) => {
+                setDaLuu(false);
+                setGia((truoc) => ({ ...truoc, gioKetThuc: e.target.value }));
+              }}
+            />
+          </div>
         </div>
-        <div className="amount-field">
-          <input
-            type="text"
-            inputMode="numeric"
-            aria-labelledby={`${idForm}-nhan-thoi-luong`}
-            aria-invalid={loi?.field === "thoiLuongPhut" || undefined}
-            value={gia.thoiLuongPhut}
-            onChange={(e) => {
-              setDaLuu(false);
-              const chiSo = e.target.value.replace(/\D/g, "");
-              setGia((truoc) => ({ ...truoc, thoiLuongPhut: chiSo }));
-            }}
-          />
-          <span className="unit-label">phút</span>
-        </div>
+
+        {/* Xem trước thời lượng — chỉ hiển thị, không gửi lên server (xem
+            JSDoc `xemTruocThoiLuong()` ở trên). Im lặng cho tới khi cả hai ô
+            đã điền, tránh nhấp nháy "chưa hợp lệ" ngay từ ô đầu tiên. */}
+        {xemTruoc.trangThai === "hop-le" ? (
+          <p className="sub">= {formatPhut(xemTruoc.phut)} phút</p>
+        ) : xemTruoc.trangThai === "khong-hop-le" ? (
+          <p className="sub">Giờ kết thúc phải sau giờ bắt đầu.</p>
+        ) : null}
 
         {loi ? (
           <p className="field-error" role="alert">

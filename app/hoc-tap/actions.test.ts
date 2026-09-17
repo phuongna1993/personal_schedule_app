@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Unit test cho Server Action của module Học tập.
  *
- * Trọng tâm: I/O & Edge-Case Matrix của story (8-ghi-buoi-hoc.md) —
+ * Trọng tâm: I/O & Edge-Case Matrix của story (8-ghi-buoi-hoc.md, cập nhật
+ * bởi 13-nhap-gio-buoi-hoc.md) —
  *  - Log a session for Tiếng Anh / Automation Test: hai Kỹ năng độc lập
  *    hoàn toàn, không action nào đọc/ghi chéo Kỹ năng còn lại.
  *  - Empty nội dung (rỗng/chỉ khoảng trắng) -> `NOI_DUNG_TRONG`.
- *  - Thời lượng <= 0, hoặc vượt biên Int32 -> `THOI_LUONG_KHONG_HOP_LE`,
- *    chặn TRƯỚC khi chạm Prisma.
+ *  - `gioBatDau`/`gioKetThuc` (Story 13) — server tự tính `thoiLuongPhut` từ
+ *    hai chuỗi `"HH:mm"`, không nhận thời lượng đã tính sẵn từ client; giờ
+ *    kết thúc phải strictly sau giờ bắt đầu, không hỗ trợ overnight wrap.
  *  - Log twice cùng một Kỹ năng -> hai hàng độc lập, không hàng nào bị ghi
  *    đè.
  *  - `ngay` luôn stamp bằng `layMocNgayVN()` tại thời điểm ghi — không có
@@ -52,13 +54,17 @@ const { layLichSuDiemBaiTest } = await import("./queries");
 const BUOI_HOC_TIENG_ANH_HOP_LE = {
   kyNang: "TiengAnh",
   noiDung: "Ôn 20 từ vựng chủ đề du lịch",
-  thoiLuongPhut: 30,
+  // 20:00 -> 20:30 == 30 phút, khớp `hangBuoiHocPrisma()`'s default bên dưới.
+  gioBatDau: "20:00",
+  gioKetThuc: "20:30",
 };
 
 const BUOI_HOC_AUTOMATION_HOP_LE = {
   kyNang: "AutomationTest",
   noiDung: "Học Playwright locators",
-  thoiLuongPhut: 45,
+  // 20:00 -> 20:45 == 45 phút.
+  gioBatDau: "20:00",
+  gioKetThuc: "20:45",
 };
 
 let demId = 0;
@@ -164,6 +170,19 @@ describe("ghiBuoiHoc — Log a session for Automation Test", () => {
     });
   });
 
+  it("Automation Test dùng cùng validation giờ bắt đầu/kết thúc như Tiếng Anh — hành vi giống hệt", async () => {
+    const ketQua = await ghiBuoiHoc({
+      ...BUOI_HOC_AUTOMATION_HOP_LE,
+      gioBatDau: "20:00",
+      gioKetThuc: "20:00",
+    });
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU");
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+
   it("chặn kyNang không hợp lệ (không phải TiengAnh/AutomationTest)", async () => {
     const ketQua = await ghiBuoiHoc({
       ...BUOI_HOC_TIENG_ANH_HOP_LE,
@@ -237,65 +256,166 @@ describe("ghiBuoiHoc — Empty nội dung", () => {
   });
 });
 
-describe("ghiBuoiHoc — Thời lượng zero or negative", () => {
-  it("chặn thời lượng bằng 0", async () => {
+describe("ghiBuoiHoc — Giờ bắt đầu/kết thúc (Story 13)", () => {
+  it("chặn giờ kết thúc bằng giờ bắt đầu", async () => {
     const ketQua = await ghiBuoiHoc({
       ...BUOI_HOC_TIENG_ANH_HOP_LE,
-      thoiLuongPhut: 0,
+      gioBatDau: "20:00",
+      gioKetThuc: "20:00",
     });
 
     expect(ketQua.ok).toBe(false);
     if (ketQua.ok) throw new Error("unreachable");
-    expect(ketQua.error.code).toBe("THOI_LUONG_KHONG_HOP_LE");
-    expect(ketQua.error.field).toBe("thoiLuongPhut");
+    expect(ketQua.error.code).toBe("GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU");
+    expect(ketQua.error.field).toBe("gioKetThuc");
     expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
   });
 
-  it("chặn thời lượng âm", async () => {
+  it("chặn giờ kết thúc trước giờ bắt đầu — không hỗ trợ overnight wraparound", async () => {
     const ketQua = await ghiBuoiHoc({
       ...BUOI_HOC_TIENG_ANH_HOP_LE,
-      thoiLuongPhut: -15,
+      gioBatDau: "23:00",
+      gioKetThuc: "00:30",
     });
 
     expect(ketQua.ok).toBe(false);
     if (ketQua.ok) throw new Error("unreachable");
-    expect(ketQua.error.code).toBe("THOI_LUONG_KHONG_HOP_LE");
+    expect(ketQua.error.code).toBe("GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU");
     expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
   });
 
-  it("chặn thời lượng thập phân", async () => {
-    const ketQua = await ghiBuoiHoc({
+  it("chặn giờ bắt đầu rỗng/thiếu", async () => {
+    const rong = await ghiBuoiHoc({
       ...BUOI_HOC_TIENG_ANH_HOP_LE,
-      thoiLuongPhut: 30.5,
+      gioBatDau: "",
     });
+    expect(rong.ok).toBe(false);
+    if (rong.ok) throw new Error("unreachable");
+    expect(rong.error.code).toBe("GIO_BAT_DAU_KHONG_HOP_LE");
+    expect(rong.error.field).toBe("gioBatDau");
 
-    expect(ketQua.ok).toBe(false);
-    if (ketQua.ok) throw new Error("unreachable");
-    expect(ketQua.error.code).toBe("THOI_LUONG_KHONG_HOP_LE");
-  });
-});
+    const { gioBatDau: _boQua, ...thieuGioBatDau } = BUOI_HOC_TIENG_ANH_HOP_LE;
+    void _boQua;
+    const thieu = await ghiBuoiHoc(thieuGioBatDau);
+    expect(thieu.ok).toBe(false);
+    if (thieu.ok) throw new Error("unreachable");
+    expect(thieu.error.code).toBe("GIO_BAT_DAU_KHONG_HOP_LE");
 
-describe("ghiBuoiHoc — Thời lượng exceeds Int32 max", () => {
-  it("chặn thời lượng vượt giới hạn Int32, TRƯỚC khi chạm Prisma", async () => {
-    const ketQua = await ghiBuoiHoc({
-      ...BUOI_HOC_TIENG_ANH_HOP_LE,
-      thoiLuongPhut: 2_147_483_648,
-    });
-
-    expect(ketQua.ok).toBe(false);
-    if (ketQua.ok) throw new Error("unreachable");
-    expect(ketQua.error.code).toBe("THOI_LUONG_KHONG_HOP_LE");
-    expect(ketQua.error.field).toBe("thoiLuongPhut");
     expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
   });
 
-  it("chấp nhận thời lượng đúng bằng giới hạn Int32", async () => {
+  it("chặn giờ kết thúc rỗng/thiếu", async () => {
+    const rong = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      gioKetThuc: "",
+    });
+    expect(rong.ok).toBe(false);
+    if (rong.ok) throw new Error("unreachable");
+    expect(rong.error.code).toBe("GIO_KET_THUC_KHONG_HOP_LE");
+    expect(rong.error.field).toBe("gioKetThuc");
+
+    const { gioKetThuc: _boQua, ...thieuGioKetThuc } =
+      BUOI_HOC_TIENG_ANH_HOP_LE;
+    void _boQua;
+    const thieu = await ghiBuoiHoc(thieuGioKetThuc);
+    expect(thieu.ok).toBe(false);
+    if (thieu.ok) throw new Error("unreachable");
+    expect(thieu.error.code).toBe("GIO_KET_THUC_KHONG_HOP_LE");
+
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+
+  it("chặn chuỗi giờ bắt đầu sai định dạng (không phải HH:mm), TRƯỚC khi chạm Prisma", async () => {
     const ketQua = await ghiBuoiHoc({
       ...BUOI_HOC_TIENG_ANH_HOP_LE,
-      thoiLuongPhut: 2_147_483_647,
+      gioBatDau: "8pm",
+    });
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GIO_BAT_DAU_KHONG_HOP_LE");
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+
+  it("chặn chuỗi giờ kết thúc sai định dạng (không phải HH:mm), với giờ bắt đầu hợp lệ", async () => {
+    const chuoiKhongPhaiSo = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      gioBatDau: "20:00",
+      gioKetThuc: "abc",
+    });
+    expect(chuoiKhongPhaiSo.ok).toBe(false);
+    if (chuoiKhongPhaiSo.ok) throw new Error("unreachable");
+    expect(chuoiKhongPhaiSo.error.code).toBe("GIO_KET_THUC_KHONG_HOP_LE");
+    expect(chuoiKhongPhaiSo.error.field).toBe("gioKetThuc");
+
+    const phutVuotNgoai = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      gioBatDau: "20:00",
+      gioKetThuc: "20:60",
+    });
+    expect(phutVuotNgoai.ok).toBe(false);
+    if (phutVuotNgoai.ok) throw new Error("unreachable");
+    expect(phutVuotNgoai.error.code).toBe("GIO_KET_THUC_KHONG_HOP_LE");
+
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+
+  it("chấp nhận buổi học trọn ngày 00:00 -> 23:59, thoiLuongPhut = 1439", async () => {
+    const ketQua = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      gioBatDau: "00:00",
+      gioKetThuc: "23:59",
     });
 
     expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.thoiLuongPhut).toBe(1439);
+  });
+
+  it("chấp nhận cận dưới 1 phút: 20:00 -> 20:01, thoiLuongPhut = 1", async () => {
+    const ketQua = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      gioBatDau: "20:00",
+      gioKetThuc: "20:01",
+    });
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.thoiLuongPhut).toBe(1);
+  });
+
+  it("bỏ qua/từ chối một thoiLuongPhut client tự tính gửi kèm — server chỉ đọc gioBatDau/gioKetThuc", async () => {
+    const ketQua = await ghiBuoiHoc({
+      kyNang: "TiengAnh",
+      noiDung: "Ôn ngữ pháp",
+      thoiLuongPhut: 999,
+    });
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    // Không có gioBatDau/gioKetThuc trong payload này -> từ chối ở bước
+    // kiểm tra giờ bắt đầu, thoiLuongPhut gửi kèm không bao giờ được đọc.
+    expect(ketQua.error.code).toBe("GIO_BAT_DAU_KHONG_HOP_LE");
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+
+  it("một thoiLuongPhut client tự tính gửi kèm CÙNG với gioBatDau/gioKetThuc hợp lệ bị bỏ qua hoàn toàn — hàng ghi vẫn dùng giá trị server tự tính", async () => {
+    const ketQua = await ghiBuoiHoc({
+      kyNang: "TiengAnh",
+      noiDung: "Ôn ngữ pháp",
+      gioBatDau: "20:00",
+      gioKetThuc: "20:30",
+      // Giá trị giả mạo — nếu server lỡ đọc trường này thay vì tự tính,
+      // hàng ghi sẽ sai thành 9999 thay vì 30.
+      thoiLuongPhut: 9999,
+    });
+
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.thoiLuongPhut).toBe(30);
+    expect(prismaMock.buoiHoc.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ thoiLuongPhut: 30 }),
+    });
   });
 });
 

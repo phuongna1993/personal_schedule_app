@@ -27,13 +27,7 @@ import { damBaoMocDaKhoiTao, layMocHienTai } from "./queries";
 
 const DUONG_DAN_MAN_HINH = "/hoc-tap";
 
-/** Giới hạn trên của `Int` trong Prisma (32-bit có dấu) — chặn ở biên ứng
- * dụng trước khi một giá trị vượt cỡ chạm tầng Prisma/SQLite. Đây là một hard
- * overflow guard, KHÔNG phải một "thời lượng buổi học thực tế" tự đặt ra
- * (Boundaries — mirror `SO_TIEN_TOI_DA`, `app/chi-tieu/actions.ts:38`). */
-const THOI_LUONG_TOI_DA = 2_147_483_647;
-
-/** Giới hạn độ dài nội dung — chặn sớm, cùng lý do với `THOI_LUONG_TOI_DA`
+/** Giới hạn độ dài nội dung — chặn sớm, một hard overflow guard nội bộ
  * (mirror `DO_DAI_GHI_CHU_TOI_DA`, `app/chi-tieu/actions.ts`). */
 const DO_DAI_NOI_DUNG_TOI_DA = 500;
 
@@ -60,7 +54,11 @@ async function boiCanhGhi<T>(
 type DuLieuBuoiHoc = {
   kyNang: string;
   noiDung: string;
-  thoiLuongPhut: number;
+  /** `"HH:mm"` — giờ bắt đầu/kết thúc buổi học, cùng ngày (Story 13). Không
+   * còn nhận `thoiLuongPhut` từ client: server luôn tự tính từ hai mốc giờ
+   * này, không bao giờ tin một thời lượng đã tính sẵn từ phía client. */
+  gioBatDau: string;
+  gioKetThuc: string;
 };
 
 type BuoiHocDaKiemTra = {
@@ -69,12 +67,30 @@ type BuoiHocDaKiemTra = {
   thoiLuongPhut: number;
 };
 
+/** `"HH:mm"`, 24 giờ — khớp value gốc của `<input type="time">`. */
+const REGEX_GIO = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Parse một chuỗi `"HH:mm"` thành số phút tính từ 00:00 cùng ngày.
+ * Trả `null` cho bất cứ thứ gì không đúng dạng (thiếu/rỗng, không phải
+ * chuỗi, giờ/phút sai định dạng) — gọi nơi biên trước khi tính thời lượng,
+ * không có wraparound qua nửa đêm (Boundaries: "reject, don't wrap around"). */
+function parseGio(gio: unknown): number | null {
+  if (typeof gio !== "string") return null;
+  const khop = REGEX_GIO.exec(gio);
+  if (!khop) return null;
+  return Number(khop[1]) * 60 + Number(khop[2]);
+}
+
 /**
  * Kiểm tra dữ liệu một Buổi học trước khi ghi (mirror `kiemTraGiaoDich()`,
  * `app/chi-tieu/actions.ts`).
  *
  * Tham số nhận `unknown`: Server Action là một endpoint công khai, kiểu
- * TypeScript bị xoá sạch ở runtime nên payload có thể là bất cứ thứ gì.
+ * TypeScript bị xoá sạch ở runtime nên payload có thể là bất cứ thứ gì —
+ * kể cả một `thoiLuongPhut` client tự tính gửi kèm (Story 13's payload shape
+ * mới không có trường này; nó bị bỏ qua hoàn toàn vì `kiemTraBuoiHoc` chỉ
+ * đọc `gioBatDau`/`gioKetThuc` rồi tự tính `thoiLuongPhut`, không bao giờ đọc
+ * lại một `thoiLuongPhut` gửi kèm).
  */
 function kiemTraBuoiHoc(duLieu: unknown): KetQua<BuoiHocDaKiemTra> {
   if (
@@ -111,27 +127,39 @@ function kiemTraBuoiHoc(duLieu: unknown): KetQua<BuoiHocDaKiemTra> {
     );
   }
 
-  if (
-    !Number.isInteger(tho.thoiLuongPhut) ||
-    (tho.thoiLuongPhut as number) <= 0 ||
-    (tho.thoiLuongPhut as number) > THOI_LUONG_TOI_DA
-  ) {
-    // Không lộ hằng số Int32 ra thông báo cho người dùng cuối — chỉ là một
-    // overflow guard nội bộ, không phải một luật nghiệp vụ có ý nghĩa để hiển
-    // thị (mirror cách `SO_TIEN_KHONG_HOP_LE` diễn đạt, nhưng ở đây bỏ hẳn
-    // con số ra khỏi câu chữ vì "tối đa X phút" dễ bị đọc nhầm thành một giới
-    // hạn thời lượng buổi học thực tế).
+  const batDauPhut = parseGio(tho.gioBatDau);
+  if (batDauPhut === null) {
     return thatBai(
-      "THOI_LUONG_KHONG_HOP_LE",
-      "Thời lượng không hợp lệ.",
-      "thoiLuongPhut",
+      "GIO_BAT_DAU_KHONG_HOP_LE",
+      "Giờ bắt đầu không hợp lệ.",
+      "gioBatDau",
+    );
+  }
+
+  const ketThucPhut = parseGio(tho.gioKetThuc);
+  if (ketThucPhut === null) {
+    return thatBai(
+      "GIO_KET_THUC_KHONG_HOP_LE",
+      "Giờ kết thúc không hợp lệ.",
+      "gioKetThuc",
+    );
+  }
+
+  // Chỉ cùng-ngày — không có overnight wraparound (Boundaries: "reject equal
+  // or earlier end times ... don't attempt wraparound"). `<=` chặn cả trường
+  // hợp bằng nhau lẫn trường hợp sẽ cần vắt qua nửa đêm (vd 23:00 -> 00:30).
+  if (ketThucPhut <= batDauPhut) {
+    return thatBai(
+      "GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU",
+      "Giờ kết thúc phải sau giờ bắt đầu (không hỗ trợ buổi học qua đêm).",
+      "gioKetThuc",
     );
   }
 
   return thanhCong({
     kyNang: tho.kyNang,
     noiDung,
-    thoiLuongPhut: tho.thoiLuongPhut as number,
+    thoiLuongPhut: ketThucPhut - batDauPhut,
   });
 }
 

@@ -1163,23 +1163,19 @@ select {
 /* --------------------------------------------------------- học tập --- */
 /* Story 8 (CAP-11) reuses `.assign-grid`/`.assign-col` (Story 7's two-
    independent-columns pattern) and `.task-form`/`.field-label`/`.note-field`/
-   `.amount-field`/`.form-actions`/`.btn`/`.field-error` as-is. The only new
-   rule is the inline "Đã lưu ✓" confirmation, using the `--success` token
-   already defined above (unused until now). */
+   `.form-actions`/`.btn`/`.field-error` as-is. The only new rule is the
+   inline "Đã lưu ✓" confirmation, using the `--success` token already
+   defined above (unused until now).
+   Story 13 replaced the thời lượng number field with two `<input
+   type="time">` fields, reusing `.form-row`/`.field.narrow` (already defined
+   above for `lich-trinh`) and `.note-field` — no new rule needed, and the
+   `.amount-field`/`.unit-label` pairing this comment used to mention is gone
+   from this module (chi-tieu's own `.amount-field` usage is untouched). */
 
 .saved-tag {
   font-size: 12.5px;
   font-weight: 700;
   color: var(--success);
-}
-
-/* Same visual treatment as `.amount-field .cur` (the "đ" currency suffix in
-   `app/chi-tieu/ChiTieuView.tsx`), under its own name — "cur" (currency)
-   would be a misleading class name for a duration unit like "phút". */
-.amount-field .unit-label {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-tertiary);
 }
 
 /* --------------------------------------------------- lộ trình & mốc --- */

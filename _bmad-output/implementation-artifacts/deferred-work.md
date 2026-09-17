@@ -32,6 +32,14 @@ Append-only. Each entry is a real issue surfaced during a story's review that is
 
 ---
 
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/13-nhap-gio-buoi-hoc.md`
+  summary: When `ghiBuoiHoc()` rejects with `GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU`, the error is always attributed to the `gioKetThuc` field (both in the `KetQua.error.field` value and the resulting `aria-invalid` on the UI), even though the root cause could equally be a wrong `gioBatDau` — a user who mis-set the start time sees only the end-time field marked invalid.
+  evidence: Blind Hunter + Edge Case Hunter both flagged it independently. `LoiAction`'s `field?: string` is singular by established app-wide convention (`lib/ketQua.ts`, used identically everywhere) — properly attributing blame to both fields would need a multi-field error shape, an app-wide convention change out of scope for this story.
+
+- source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/13-nhap-gio-buoi-hoc.md`
+  summary: No test sends both `gioBatDau` and `gioKetThuc` simultaneously invalid (both empty, or both malformed) to confirm which error code surfaces first — the priority order (`gioBatDau` checked before `gioKetThuc`) is only inferable from reading the code.
+  evidence: Blind Hunter finding; low value — the exact error-priority order isn't a behavior any Acceptance Criterion or I/O matrix row depends on, just an implementation detail.
+
 - source_spec: `_bmad-output/specs/spec-personal_phuongna/stories/12-xem-lich-su-diem-bai-test.md`
   summary: `layLichSuDiemBaiTest()`'s `MOC_TIENG_ANH`-title fallback (`` `Mốc ${row.moc.thuTu}` `` for a `thuTu` not found in the fixed title list) has no test exercising it.
   evidence: Blind Hunter review finding; not reachable through any current write path — `Moc` rows are only ever seeded by `damBaoMocDaKhoiTao()` with the 3 fixed Tiếng Anh `thuTu` values (1-3), all present in `MOC_TIENG_ANH` — same class of "defense-in-depth gap, not reachable through any current write path" already accepted repeatedly in this file.
