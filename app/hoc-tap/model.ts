@@ -33,6 +33,8 @@ export type BuoiHocDaGhi = {
   noiDung: string;
   /** Phút, số nguyên dương. */
   thoiLuongPhut: number;
+  /** Ghi chú chi tiết buổi học, `null` khi không nhập. */
+  ghiChu: string | null;
   /** Mốc ngày VN (00:00 Asia/Ho_Chi_Minh) — luôn là ngày ghi, xem
    * `lib/ngayVn.ts`. */
   ngay: Date;
@@ -46,6 +48,7 @@ export type BuoiHocHangPrisma = {
   kyNang: string;
   noiDung: string;
   thoiLuongPhut: number;
+  ghiChu?: string | null;
   ngay: Date;
 };
 
@@ -58,6 +61,7 @@ export function dinhDangBuoiHoc(row: BuoiHocHangPrisma): BuoiHocDaGhi {
     kyNang: laKyNang(row.kyNang) ? row.kyNang : "TiengAnh",
     noiDung: row.noiDung,
     thoiLuongPhut: row.thoiLuongPhut,
+    ghiChu: row.ghiChu ?? null,
     ngay: row.ngay,
   };
 }

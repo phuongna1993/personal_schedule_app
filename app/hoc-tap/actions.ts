@@ -31,6 +31,9 @@ const DUONG_DAN_MAN_HINH = "/hoc-tap";
  * (mirror `DO_DAI_GHI_CHU_TOI_DA`, `app/chi-tieu/actions.ts`). */
 const DO_DAI_NOI_DUNG_TOI_DA = 500;
 
+/** Giới hạn độ dài Ghi chú chi tiết một Buổi học (tuỳ chọn). */
+const DO_DAI_GHI_CHU_TOI_DA = 5000;
+
 /** Giới hạn độ dài Điểm số — chặn sớm, cùng lý do với `DO_DAI_NOI_DUNG_TOI_DA`
  * (Điểm số là free-form text, định dạng để ngỏ — ARCHITECTURE-SPINE.md's
  * Deferred — nhưng vẫn cần một hard overflow guard). */
@@ -59,12 +62,15 @@ type DuLieuBuoiHoc = {
    * này, không bao giờ tin một thời lượng đã tính sẵn từ phía client. */
   gioBatDau: string;
   gioKetThuc: string;
+  /** Ghi chú chi tiết — tuỳ chọn; rỗng/thiếu lưu `null`. */
+  ghiChu?: string;
 };
 
 type BuoiHocDaKiemTra = {
   kyNang: KyNangEnum;
   noiDung: string;
   thoiLuongPhut: number;
+  ghiChu: string | null;
 };
 
 /** `"HH:mm"`, 24 giờ — khớp value gốc của `<input type="time">`. */
@@ -127,6 +133,17 @@ function kiemTraBuoiHoc(duLieu: unknown): KetQua<BuoiHocDaKiemTra> {
     );
   }
 
+  // Mirror `ghiChu` của `kiemTraGiaoDich()` (app/chi-tieu/actions.ts).
+  const ghiChuTho = typeof tho.ghiChu === "string" ? tho.ghiChu.trim() : "";
+  if (ghiChuTho.length > DO_DAI_GHI_CHU_TOI_DA) {
+    return thatBai(
+      "GHI_CHU_QUA_DAI",
+      `Ghi chú tối đa ${DO_DAI_GHI_CHU_TOI_DA} ký tự.`,
+      "ghiChu",
+    );
+  }
+  const ghiChu = ghiChuTho.length > 0 ? ghiChuTho : null;
+
   const batDauPhut = parseGio(tho.gioBatDau);
   if (batDauPhut === null) {
     return thatBai(
@@ -160,6 +177,7 @@ function kiemTraBuoiHoc(duLieu: unknown): KetQua<BuoiHocDaKiemTra> {
     kyNang: tho.kyNang,
     noiDung,
     thoiLuongPhut: ketThucPhut - batDauPhut,
+    ghiChu,
   });
 }
 
@@ -182,12 +200,37 @@ export async function ghiBuoiHoc(
         kyNang: daKiemTra.data.kyNang,
         noiDung: daKiemTra.data.noiDung,
         thoiLuongPhut: daKiemTra.data.thoiLuongPhut,
+        ghiChu: daKiemTra.data.ghiChu,
         ngay: layMocNgayVN(),
       },
     });
 
     lamMoiManHinh();
     return thanhCong(dinhDangBuoiHoc(row));
+  });
+}
+
+/**
+ * Xoá một Buổi học (vd. ghi nhầm). Không có bước xác nhận — mirror
+ * `xoaGiaoDich` (`app/chi-tieu/actions.ts`, EXPERIENCE.md). Streak/tổng thời
+ * lượng tự tính lại từ các hàng còn lại khi màn hình revalidate.
+ */
+export async function xoaBuoiHoc(id: unknown): Promise<KetQua<{ id: number }>> {
+  if (typeof id !== "number" || !Number.isInteger(id)) {
+    return thatBai("ID_KHONG_HOP_LE", "Buổi học không hợp lệ.");
+  }
+
+  return boiCanhGhi(async () => {
+    const daXoa = await prisma.buoiHoc.deleteMany({ where: { id } });
+    if (daXoa.count === 0) {
+      return thatBai(
+        "KHONG_TIM_THAY_BUOI_HOC",
+        "Buổi học này không còn tồn tại.",
+      );
+    }
+
+    lamMoiManHinh();
+    return thanhCong({ id });
   });
 }
 

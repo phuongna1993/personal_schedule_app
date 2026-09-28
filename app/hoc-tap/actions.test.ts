@@ -24,6 +24,7 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
   prismaMock: {
     buoiHoc: {
       create: vi.fn(),
+      deleteMany: vi.fn(),
     },
     moc: {
       upsert: vi.fn(),
@@ -43,7 +44,9 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
-const { ghiBuoiHoc, hoanThanhMoc, ghiDiemBaiTest } = await import("./actions");
+const { ghiBuoiHoc, xoaBuoiHoc, hoanThanhMoc, ghiDiemBaiTest } = await import(
+  "./actions"
+);
 const { biChanHoanThanhBoiGateDiem } = await import("./model");
 // `layLichSuDiemBaiTest()` (CAP-12, Story 12) sống ở `./queries`, không phải
 // `./actions` — import riêng để test round-trip ghi/đọc bên dưới, dùng
@@ -123,6 +126,7 @@ describe("ghiBuoiHoc — Log a session for Tiếng Anh", () => {
         kyNang: "TiengAnh",
         noiDung: "Ôn 20 từ vựng chủ đề du lịch",
         thoiLuongPhut: 30,
+        ghiChu: null,
         ngay: expect.any(Date),
       },
     });
@@ -486,6 +490,101 @@ describe("ghiBuoiHoc — lỗi hệ thống", () => {
     if (ketQua.ok) throw new Error("unreachable");
     expect(ketQua.error.code).toBe("LOI_HE_THONG");
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ghiBuoiHoc — Ghi chú chi tiết (tuỳ chọn, tối đa 5000 ký tự)", () => {
+  it("không gửi ghiChu -> lưu null", async () => {
+    await ghiBuoiHoc(BUOI_HOC_TIENG_ANH_HOP_LE);
+
+    expect(prismaMock.buoiHoc.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ghiChu: null }),
+    });
+  });
+
+  it("ghi chú chỉ có khoảng trắng -> lưu null", async () => {
+    await ghiBuoiHoc({ ...BUOI_HOC_TIENG_ANH_HOP_LE, ghiChu: "   \n  " });
+
+    expect(prismaMock.buoiHoc.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ghiChu: null }),
+    });
+  });
+
+  it("ghi chú có nội dung -> trim rồi lưu, giữ xuống dòng bên trong, trả về trong kết quả", async () => {
+    const ketQua = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      ghiChu: "  Dòng 1\nDòng 2  ",
+    });
+
+    expect(prismaMock.buoiHoc.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ghiChu: "Dòng 1\nDòng 2" }),
+    });
+    expect(ketQua.ok).toBe(true);
+    if (!ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.data.ghiChu).toBe("Dòng 1\nDòng 2");
+  });
+
+  it("chấp nhận đúng 5000 ký tự, chặn 5001 ký tự -> GHI_CHU_QUA_DAI, không ghi", async () => {
+    const ok = await ghiBuoiHoc({ ...BUOI_HOC_TIENG_ANH_HOP_LE, ghiChu: "a".repeat(5000) });
+    expect(ok.ok).toBe(true);
+
+    prismaMock.buoiHoc.create.mockClear();
+    const ketQua = await ghiBuoiHoc({
+      ...BUOI_HOC_TIENG_ANH_HOP_LE,
+      ghiChu: "a".repeat(5001),
+    });
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GHI_CHU_QUA_DAI");
+    expect(ketQua.error.field).toBe("ghiChu");
+    expect(prismaMock.buoiHoc.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("xoaBuoiHoc — Delete", () => {
+  it("xoá đúng hàng theo id, không xác nhận, revalidate màn hình", async () => {
+    prismaMock.buoiHoc.deleteMany.mockResolvedValue({ count: 1 });
+
+    const ketQua = await xoaBuoiHoc(7);
+
+    expect(ketQua).toEqual({ ok: true, data: { id: 7 } });
+    expect(prismaMock.buoiHoc.deleteMany).toHaveBeenCalledWith({ where: { id: 7 } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/hoc-tap");
+  });
+
+  it("Buổi học không còn tồn tại -> KHONG_TIM_THAY_BUOI_HOC, không revalidate", async () => {
+    prismaMock.buoiHoc.deleteMany.mockResolvedValue({ count: 0 });
+
+    const ketQua = await xoaBuoiHoc(999);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("KHONG_TIM_THAY_BUOI_HOC");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it.each([1.5, "7", null, undefined])(
+    "chặn id không phải số nguyên (%s) trước khi chạm Prisma",
+    async (id) => {
+      const ketQua = await xoaBuoiHoc(id);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("ID_KHONG_HOP_LE");
+      expect(prismaMock.buoiHoc.deleteMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.buoiHoc.deleteMany.mockRejectedValue(new Error("SQLITE_BUSY"));
+
+    const ketQua = await xoaBuoiHoc(7);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
   });
 });
 

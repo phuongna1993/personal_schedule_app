@@ -284,6 +284,11 @@ model BuoiHoc {
   /// dụng bằng biên Int32 (mirror `SO_TIEN_TOI_DA`, `app/chi-tieu/actions.ts`).
   thoiLuongPhut Int
 
+  /// Ghi chú chi tiết buổi học — tuỳ chọn, tối đa 5000 ký tự (chặn ở tầng ứng
+  /// dụng, `DO_DAI_GHI_CHU_TOI_DA` trong `app/hoc-tap/actions.ts`). Rỗng lưu
+  /// `null`.
+  ghiChu String?
+
   /// Mốc 00:00 giờ Asia/Ho_Chi_Minh của NGÀY GHI — luôn stamp bằng
   /// `layMocNgayVN()` tại thời điểm tạo, KHÔNG có trường ngày cho người dùng
   /// tự sửa (Boundaries: đây là một trong ba thao tác "ghi nhanh", không có

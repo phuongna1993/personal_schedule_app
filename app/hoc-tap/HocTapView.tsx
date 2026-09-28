@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import type { LoiAction } from "@/lib/ketQua";
 import { formatNgayVN } from "@/lib/ngayVn";
-import { ghiBuoiHoc, ghiDiemBaiTest, hoanThanhMoc } from "./actions";
+import { ghiBuoiHoc, ghiDiemBaiTest, hoanThanhMoc, xoaBuoiHoc } from "./actions";
 import {
   biChanHoanThanhBoiGateDiem,
   type DiemBaiTestLichSu,
@@ -171,8 +171,8 @@ export default function HocTapView({
 /**
  * Một cột tiến độ của một Kỹ năng — streak line, tổng thời lượng tháng đang
  * xem, và danh sách Buổi học của tháng đó (hàng tái dùng `.task-row`, mirror
- * `ChiTieuView`'s log tháng). Đọc-only, không có input/nút Lưu nào ở đây
- * (ghi Buổi học là `KyNangForm` phía trên, story 8, không đổi).
+ * `ChiTieuView`'s log tháng). Mỗi hàng có nút ✕ xoá Buổi học; ghi Buổi học
+ * vẫn là `KyNangForm` phía trên (story 8).
  */
 function TienDoCot({
   kyNang,
@@ -181,6 +181,23 @@ function TienDoCot({
   kyNang: KyNangEnum;
   tienDo: TienDoKyNang;
 }) {
+  const [loiXoa, setLoiXoa] = useState<LoiAction | null>(null);
+  const [dangXoa, batDauXoa] = useTransition();
+
+  // Xoá ngay, không xác nhận — mirror `ChiTieuView`'s xoá Giao dịch.
+  function xoa(id: number) {
+    setLoiXoa(null);
+    batDauXoa(async () => {
+      try {
+        const ketQua = await xoaBuoiHoc(id);
+        if (!ketQua.ok) setLoiXoa(ketQua.error);
+      } catch (loi) {
+        console.error("[hoc-tap] xoaBuoiHoc thất bại:", loi);
+        setLoiXoa(LOI_KET_NOI);
+      }
+    });
+  }
+
   return (
     <div className="assign-col">
       <h3>{NHAN_KY_NANG[kyNang]}</h3>
@@ -211,11 +228,37 @@ function TienDoCot({
         tienDo.buoiHoc.map((bh) => (
           <div className="task-row" key={bh.id}>
             <span className="ttime wide">{formatNgayVN(bh.ngay)}</span>
-            <span className="tname">{bh.noiDung}</span>
+            <span className="tname">
+              {bh.noiDung}
+              {bh.ghiChu ? (
+                <details className="buoi-ghi-chu">
+                  <summary>Ghi chú</summary>
+                  <p>{bh.ghiChu}</p>
+                </details>
+              ) : null}
+            </span>
             <span className="tname amt">{formatPhut(bh.thoiLuongPhut)} phút</span>
+            <span className="row-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                disabled={dangXoa}
+                onClick={() => xoa(bh.id)}
+                aria-label={`Xoá Buổi học ngày ${formatNgayVN(bh.ngay)}`}
+                title="Xoá Buổi học"
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
+            </span>
           </div>
         ))
       )}
+
+      {loiXoa ? (
+        <p className="field-error" role="alert">
+          {loiXoa.message}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -228,11 +271,15 @@ type DuLieuForm = {
    * `app/hoc-tap/actions.ts`). */
   gioBatDau: string;
   gioKetThuc: string;
+  ghiChu: string;
 };
 
 function formTrong(): DuLieuForm {
-  return { noiDung: "", gioBatDau: "", gioKetThuc: "" };
+  return { noiDung: "", gioBatDau: "", gioKetThuc: "", ghiChu: "" };
 }
+
+/** Mirror `DO_DAI_GHI_CHU_TOI_DA` ở `app/hoc-tap/actions.ts`. */
+const DO_DAI_GHI_CHU_TOI_DA = 5000;
 
 /** `"HH:mm"`, 24 giờ — mirror `REGEX_GIO` ở `app/hoc-tap/actions.ts`. Value
  * gốc của `<input type="time">` đã tự đúng dạng này; regex ở đây chỉ là một
@@ -295,6 +342,7 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
           // "the server is the sole source of truth" cho thời lượng).
           gioBatDau: gia.gioBatDau,
           gioKetThuc: gia.gioKetThuc,
+          ghiChu: gia.ghiChu,
         });
         if (ketQua.ok) {
           // Một-cú-bấm-là-xong, không có bước xác nhận thứ hai — form clear
@@ -336,6 +384,29 @@ function KyNangForm({ kyNang }: { kyNang: KyNangEnum }) {
             setGia((truoc) => ({ ...truoc, noiDung: e.target.value }));
           }}
         />
+
+        <div id={`${idForm}-nhan-ghi-chu`} className="field-label">
+          Ghi chú chi tiết — tuỳ chọn
+        </div>
+        <textarea
+          className="note-field ghi-chu-buoi-hoc"
+          rows={4}
+          aria-labelledby={`${idForm}-nhan-ghi-chu`}
+          placeholder="Ghi lại chi tiết buổi học: đã làm gì, chỗ nào chưa hiểu, cần ôn lại gì…"
+          value={gia.ghiChu}
+          aria-invalid={loi?.field === "ghiChu" || undefined}
+          maxLength={DO_DAI_GHI_CHU_TOI_DA}
+          onChange={(e) => {
+            setDaLuu(false);
+            setGia((truoc) => ({ ...truoc, ghiChu: e.target.value }));
+          }}
+        />
+        {gia.ghiChu.length > 0 ? (
+          <p className="sub">
+            {gia.ghiChu.length.toLocaleString("vi-VN")}/
+            {DO_DAI_GHI_CHU_TOI_DA.toLocaleString("vi-VN")} ký tự
+          </p>
+        ) : null}
 
         <p className="group-sub">
           Giờ bắt đầu và giờ kết thúc phải cùng một ngày — chưa hỗ trợ buổi
