@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import type { KetQua, LoiAction } from "@/lib/ketQua";
 import {
   luuThucDonBe,
@@ -49,6 +49,82 @@ type HangFormNguyenLieu = {
 
 function hangTuNguyenLieu(nl: NguyenLieu): HangFormNguyenLieu {
   return { key: `nl-${nl.id}`, id: nl.id, tenBanDau: nl.ten, anhBanDau: nl.anh };
+}
+
+/**
+ * Ô chọn ảnh dùng chung cho ảnh món và ảnh từng Nguyên liệu: thumbnail (ảnh
+ * đã lưu, hoặc xem trước file vừa chọn), `<input type="file">` native và nút
+ * "Xoá ảnh". File vẫn đi qua FormData như cũ (input không controlled); chỉ
+ * cờ xoá ảnh cũ là state, emit qua hidden input `tenCoXoa` = "1"/"". Hidden
+ * input LUÔN được render (kể cả rỗng) để mảng `nguyenLieuXoaAnh` giữ cùng độ
+ * dài/chỉ số với `nguyenLieuTen` (xem `docHangNguyenLieu`, actions.ts).
+ */
+function OChonAnh({
+  id,
+  tenFile,
+  tenCoXoa,
+  anhCu,
+  nhanAria,
+  loiAnh,
+  lon = false,
+}: {
+  id?: string;
+  tenFile: string;
+  tenCoXoa: string;
+  anhCu: string | null;
+  nhanAria?: string;
+  loiAnh?: boolean;
+  lon?: boolean;
+}) {
+  const refInput = useRef<HTMLInputElement>(null);
+  const [daXoaAnhCu, setDaXoaAnhCu] = useState(false);
+  const [xemTruoc, setXemTruoc] = useState<string | null>(null);
+
+  // Thu hồi object URL cũ mỗi khi đổi file / unmount — tránh rò bộ nhớ.
+  useEffect(() => {
+    return () => {
+      if (xemTruoc) URL.revokeObjectURL(xemTruoc);
+    };
+  }, [xemTruoc]);
+
+  function doiFile(suKien: React.ChangeEvent<HTMLInputElement>) {
+    const file = suKien.currentTarget.files?.[0];
+    setXemTruoc(file ? URL.createObjectURL(file) : null);
+  }
+
+  function xoaAnh() {
+    if (refInput.current) refInput.current.value = "";
+    setXemTruoc(null);
+    if (anhCu) setDaXoaAnhCu(true);
+  }
+
+  const srcHienThi = xemTruoc ?? (daXoaAnhCu ? undefined : duongDanAnh(anhCu));
+
+  return (
+    <div className={lon ? "o-anh lon" : "o-anh"}>
+      <input type="hidden" name={tenCoXoa} value={daXoaAnhCu ? "1" : ""} />
+      {srcHienThi ? (
+        <img className="o-anh-thumb" src={srcHienThi} alt="" />
+      ) : (
+        <span className="o-anh-thumb trong" aria-hidden="true" />
+      )}
+      <input
+        ref={refInput}
+        id={id}
+        type="file"
+        name={tenFile}
+        accept={ACCEPT_ANH}
+        onChange={doiFile}
+        aria-label={nhanAria}
+        aria-invalid={loiAnh || undefined}
+      />
+      {srcHienThi ? (
+        <button type="button" className="link-xoa-anh" onClick={xoaAnh}>
+          Xoá ảnh
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -407,8 +483,6 @@ function FormMonAn({
     });
   }
 
-  const anhMonHienTai = duongDanAnh(monAn?.anh ?? null);
-
   return (
     <form className="task-form" onSubmit={gui} noValidate>
       <div className="form-title">{tieuDe}</div>
@@ -428,17 +502,15 @@ function FormMonAn({
 
       <div className="field">
         <label htmlFor={`${idForm}-anh`}>
-          Ảnh món — tuỳ chọn{anhMonHienTai ? ", chọn ảnh khác để thay ảnh cũ" : ""}
+          Ảnh món — tuỳ chọn{monAn?.anh ? ", chọn ảnh khác để thay ảnh cũ" : ""}
         </label>
-        {anhMonHienTai ? (
-          <img className="dish-thumb-preview" src={anhMonHienTai} alt="" />
-        ) : null}
-        <input
+        <OChonAnh
           id={`${idForm}-anh`}
-          type="file"
-          name="anh"
-          accept={ACCEPT_ANH}
-          aria-invalid={loi?.field === "anh" || undefined}
+          tenFile="anh"
+          tenCoXoa="xoaAnh"
+          anhCu={monAn?.anh ?? null}
+          loiAnh={loi?.field === "anh"}
+          lon
         />
       </div>
 
@@ -454,15 +526,6 @@ function FormMonAn({
             defaultValue={hang.tenBanDau}
             aria-label="Tên nguyên liệu"
           />
-          {hang.anhBanDau ? (
-            <img className="ing-thumb" src={duongDanAnh(hang.anhBanDau)} alt="" />
-          ) : null}
-          <input
-            type="file"
-            name="nguyenLieuAnh"
-            accept={ACCEPT_ANH}
-            aria-label={`Ảnh cho nguyên liệu ${hang.tenBanDau || "mới"}`}
-          />
           <button
             type="button"
             className="icon-btn"
@@ -472,6 +535,12 @@ function FormMonAn({
           >
             <span aria-hidden="true">✕</span>
           </button>
+          <OChonAnh
+            tenFile="nguyenLieuAnh"
+            tenCoXoa="nguyenLieuXoaAnh"
+            anhCu={hang.anhBanDau}
+            nhanAria={`Ảnh cho nguyên liệu ${hang.tenBanDau || "mới"}`}
+          />
         </div>
       ))}
       <button type="button" className="link-add" onClick={themHang}>

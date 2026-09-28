@@ -112,19 +112,26 @@ function fileRong(): File {
 function formDataMonAn({
   ten,
   anh,
+  xoaAnh,
   hang = [],
 }: {
   ten?: string;
   anh?: File | null;
-  hang?: { id?: number | null; ten: string; file?: File | null }[];
+  xoaAnh?: boolean;
+  hang?: { id?: number | null; ten: string; file?: File | null; xoaAnh?: boolean }[];
 }): FormData {
   const fd = new FormData();
   if (ten !== undefined) fd.set("ten", ten);
   fd.set("anh", anh ?? fileRong());
+  if (xoaAnh !== undefined) fd.set("xoaAnh", xoaAnh ? "1" : "");
+  // Mảng `nguyenLieuXoaAnh` chỉ emit khi test có dùng tới (như UI thật: mọi
+  // hàng đều có) — vắng mặt hẳn thì server coi như không hàng nào xoá ảnh.
+  const coCoXoaAnh = hang.some((h) => h.xoaAnh !== undefined);
   for (const h of hang) {
     fd.append("nguyenLieuId", h.id != null ? String(h.id) : "");
     fd.append("nguyenLieuTen", h.ten);
     fd.append("nguyenLieuAnh", h.file ?? fileRong());
+    if (coCoXoaAnh) fd.append("nguyenLieuXoaAnh", h.xoaAnh ? "1" : "");
   }
   return fd;
 }
@@ -618,6 +625,85 @@ describe("suaMonAn", () => {
       where: { id: 10, monAnId: 1 },
       data: { ten: "thịt bò mới tên", anh: "nguyen-lieu/cu.jpg" },
     });
+  });
+
+  it("sửa: bấm 'Xoá ảnh' món (xoaAnh=1, không chọn file mới) -> anh: null, không ghi file", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue(
+      hangMonAnPrisma({ anh: "mon-an/anh-cu.jpg", nguyenLieu: [] }),
+    );
+    prismaMock.monAn.findUniqueOrThrow.mockResolvedValue(hangMonAnPrisma({ anh: null }));
+
+    const ketQua = await suaMonAn(1, formDataMonAn({ ten: "Món", xoaAnh: true }));
+
+    expect(ketQua.ok).toBe(true);
+    expect(prismaMock.monAn.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { ten: "Món", anh: null },
+    });
+    expect(fsMock.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("sửa: xoaAnh=1 NHƯNG có chọn file mới -> file mới thắng", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue(
+      hangMonAnPrisma({ anh: "mon-an/anh-cu.jpg", nguyenLieu: [] }),
+    );
+    prismaMock.monAn.findUniqueOrThrow.mockResolvedValue(hangMonAnPrisma());
+
+    await suaMonAn(
+      1,
+      formDataMonAn({ ten: "Món", anh: fileAnh(bytesJpeg()), xoaAnh: true }),
+    );
+
+    expect(prismaMock.monAn.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { ten: "Món", anh: "mon-an/uuid-1.jpg" },
+    });
+  });
+
+  it("sửa: 'Xoá ảnh' một Nguyên liệu -> chỉ hàng đó về anh: null, hàng khác giữ ảnh cũ", async () => {
+    prismaMock.monAn.findUnique.mockResolvedValue(
+      hangMonAnPrisma({
+        nguyenLieu: [
+          { id: 10, ten: "thịt bò", anh: "nguyen-lieu/bo.jpg" },
+          { id: 11, ten: "hành tây", anh: "nguyen-lieu/hanh.jpg" },
+        ],
+      }),
+    );
+    prismaMock.monAn.findUniqueOrThrow.mockResolvedValue(hangMonAnPrisma());
+
+    await suaMonAn(
+      1,
+      formDataMonAn({
+        ten: "Món",
+        hang: [
+          { id: 10, ten: "thịt bò", xoaAnh: true },
+          { id: 11, ten: "hành tây", xoaAnh: false },
+        ],
+      }),
+    );
+
+    expect(prismaMock.nguyenLieu.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, monAnId: 1 },
+      data: { ten: "thịt bò", anh: null },
+    });
+    expect(prismaMock.nguyenLieu.updateMany).toHaveBeenCalledWith({
+      where: { id: 11, monAnId: 1 },
+      data: { ten: "hành tây", anh: "nguyen-lieu/hanh.jpg" },
+    });
+  });
+
+  it("mảng nguyenLieuXoaAnh lệch độ dài -> DU_LIEU_KHONG_HOP_LE", async () => {
+    const fd = formDataMonAn({
+      ten: "Món",
+      hang: [{ ten: "a", xoaAnh: false }, { ten: "b", xoaAnh: false }],
+    });
+    fd.append("nguyenLieuXoaAnh", "");
+
+    const ketQua = await suaMonAn(1, fd);
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("DU_LIEU_KHONG_HOP_LE");
   });
 
   it("chặn nguyenLieuId không thuộc Món ăn đang sửa (id lạc từ Món ăn khác)", async () => {

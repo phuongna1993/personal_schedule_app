@@ -177,6 +177,9 @@ type HangNguyenLieuTho = {
   id: number | null;
   ten: string;
   file: File | null;
+  /** Người dùng bấm "Xoá ảnh" cho hàng này — chỉ có tác dụng khi KHÔNG chọn
+   * file mới (file mới luôn thắng, thay luôn ảnh cũ). */
+  xoaAnh: boolean;
 };
 
 /** Chặn một form gửi lên một số lượng hàng Nguyên liệu bất thường — vượt mức
@@ -205,8 +208,15 @@ function docHangNguyenLieu(formData: FormData): KetQua<HangNguyenLieuTho[]> {
   const idsRaw = formData.getAll("nguyenLieuId");
   const tenRaw = formData.getAll("nguyenLieuTen");
   const fileRaw = formData.getAll("nguyenLieuAnh");
+  // Mảng thứ 4, tuỳ chọn: vắng mặt hẳn = không hàng nào xoá ảnh; có mặt thì
+  // phải cùng độ dài như 3 mảng kia.
+  const xoaAnhRaw = formData.getAll("nguyenLieuXoaAnh");
 
-  if (idsRaw.length !== tenRaw.length || tenRaw.length !== fileRaw.length) {
+  if (
+    idsRaw.length !== tenRaw.length ||
+    tenRaw.length !== fileRaw.length ||
+    (xoaAnhRaw.length !== 0 && xoaAnhRaw.length !== tenRaw.length)
+  ) {
     return thatBai(
       "DU_LIEU_KHONG_HOP_LE",
       "Dữ liệu Nguyên liệu gửi lên không hợp lệ.",
@@ -254,7 +264,7 @@ function docHangNguyenLieu(formData: FormData): KetQua<HangNguyenLieuTho[]> {
       );
     }
 
-    hang.push({ id, ten, file });
+    hang.push({ id, ten, file, xoaAnh: xoaAnhRaw[i] === "1" });
   }
 
   return thanhCong(hang);
@@ -386,10 +396,14 @@ export async function suaMonAn(
       monAnHienTai.nguyenLieu.map((n) => [n.id, n.anh] as const),
     );
 
+    // File mới > cờ "Xoá ảnh" > giữ ảnh cũ. File ảnh cũ trên đĩa không bị
+    // xoá — orphan chấp nhận được ở v1, giống `xoaMonAn`.
     const anhMon =
       daKiemTra.data.anhMon !== null
         ? await ghiFileAnh(daKiemTra.data.anhMon, "mon-an")
-        : monAnHienTai.anh;
+        : formData.get("xoaAnh") === "1"
+          ? null
+          : monAnHienTai.anh;
 
     const idDuocGiu = new Set<number>();
     const capNhat: { id: number; ten: string; anh: string | null }[] = [];
@@ -406,7 +420,7 @@ export async function suaMonAn(
         capNhat.push({
           id: hang.id,
           ten: hang.ten,
-          anh: anhMoi ?? anhCuTheoId.get(hang.id) ?? null,
+          anh: anhMoi ?? (hang.xoaAnh ? null : anhCuTheoId.get(hang.id) ?? null),
         });
       } else {
         taoMoi.push({ ten: hang.ten, anh: anhMoi });
