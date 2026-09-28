@@ -243,6 +243,14 @@ select {
   flex-shrink: 0;
 }
 
+/* Khung giờ Task "06:30 – 07:00" (Lịch trình). `min-width` thay vì `width`
+   để Task cũ chỉ có một mốc giờ vẫn thẳng cột với Task có khung giờ đủ. */
+.ttime.khung {
+  width: auto;
+  min-width: 96px;
+  white-space: nowrap;
+}
+
 .tname {
   flex: 1;
   font-size: 13.5px;
@@ -726,11 +734,17 @@ select {
   color: var(--ink-tertiary);
 }
 
-/* Ghi chú chi tiết Buổi học (Học tập) — textarea cao hơn, kéo dọc được. */
+/* Ghi chú chi tiết Buổi học (Học tập) / Ghi chú ngày (Lịch trình) —
+   textarea cao hơn, kéo dọc được. */
+.ghi-chu-ngay,
 .ghi-chu-buoi-hoc {
   resize: vertical;
   min-height: 88px;
   line-height: 1.5;
+}
+
+.ghi-chu-ngay {
+  min-height: 140px;
 }
 
 /* Ghi chú trong lịch sử Buổi học — thu gọn mặc định để hàng không phình. */

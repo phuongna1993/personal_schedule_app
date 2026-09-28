@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { type KetQua, thanhCong, thatBai } from "@/lib/ketQua";
-import { layMocNgayVN } from "@/lib/ngayVn";
+import { layMocNgayVN, themNgay, tuThamSoNgay } from "@/lib/ngayVn";
 import {
   laMucUuTien,
-  laThoiHan,
+  laGio,
+  laKhungGioHopLe,
   type MucUuTien,
   type TaskMau,
   type TaskNgay,
+  SO_NGAY_LEN_LICH_TRUOC_TOI_DA,
 } from "./model";
 import { layMauLichTrinh } from "./queries";
 
@@ -31,13 +33,15 @@ const DUONG_DAN_LICH_TRINH = "/lich-trinh";
 
 type DuLieuTask = {
   ten: string;
-  thoiHan: string;
+  gioBatDau: string;
+  gioKetThuc: string;
   mucUuTien: string;
 };
 
 type TaskDaKiemTra = {
   ten: string;
-  thoiHan: string;
+  gioBatDau: string;
+  gioKetThuc: string;
   mucUuTien: MucUuTien;
 };
 
@@ -88,11 +92,29 @@ function kiemTraTask(duLieu: unknown): KetQua<TaskDaKiemTra> {
     return thatBai("TEN_TRONG", "Tên việc không được để trống.", "ten");
   }
 
-  if (!laThoiHan(tho.thoiHan)) {
+  if (!laGio(tho.gioBatDau)) {
     return thatBai(
-      "THOI_HAN_KHONG_HOP_LE",
-      "Thời hạn phải là một khung giờ trong ngày, dạng HH:mm.",
-      "thoiHan",
+      "GIO_BAT_DAU_KHONG_HOP_LE",
+      "Giờ bắt đầu phải là một mốc giờ trong ngày, dạng HH:mm.",
+      "gioBatDau",
+    );
+  }
+
+  if (!laGio(tho.gioKetThuc)) {
+    return thatBai(
+      "GIO_KET_THUC_KHONG_HOP_LE",
+      "Giờ kết thúc phải là một mốc giờ trong ngày, dạng HH:mm.",
+      "gioKetThuc",
+    );
+  }
+
+  // Cùng ngày: kết thúc <= bắt đầu vừa là "kết thúc trước bắt đầu" vừa là
+  // "vắt qua nửa đêm" — chặn cả hai, không wraparound.
+  if (!laKhungGioHopLe(tho.gioBatDau, tho.gioKetThuc)) {
+    return thatBai(
+      "GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU",
+      "Giờ kết thúc phải sau giờ bắt đầu, trong cùng một ngày.",
+      "gioKetThuc",
     );
   }
 
@@ -106,7 +128,8 @@ function kiemTraTask(duLieu: unknown): KetQua<TaskDaKiemTra> {
 
   return thanhCong({
     ten,
-    thoiHan: tho.thoiHan,
+    gioBatDau: tho.gioBatDau,
+    gioKetThuc: tho.gioKetThuc,
     mucUuTien: tho.mucUuTien,
   });
 }
@@ -148,7 +171,8 @@ export async function themTask(
     return thanhCong({
       id: task.id,
       ten: task.ten,
-      thoiHan: task.thoiHan,
+      gioBatDau: task.gioBatDau,
+      gioKetThuc: task.gioKetThuc,
       mucUuTien: daKiemTra.data.mucUuTien,
     });
   });
@@ -209,50 +233,85 @@ export async function xoaTask(id: number): Promise<KetQua<{ id: number }>> {
 // ---------------------------------------------------------------------------
 
 /**
- * Khởi tạo lười Lịch trình ngày cho HÔM NAY (giờ VN) từ Mẫu lịch trình hiện
- * hành, nếu chưa có. Đây là đúng MỘT nơi tạo hàng `LichTrinhNgay` trong toàn
- * app (AD-3 ngoại lệ 2) — gọi từ đường đọc (`/lich-trinh`'s Server Component),
- * không phải một cổng ghi công khai riêng cho UI bấm.
+ * Tạo hàng `LichTrinhNgay` cho mốc ngày `moc` từ Mẫu lịch trình hiện hành,
+ * nếu chưa có. Đây là đúng MỘT nơi tạo hàng `LichTrinhNgay` trong toàn app
+ * (AD-3 ngoại lệ 2) — hai lối vào công khai bên dưới (hôm nay / ngày tương
+ * lai) đều đi qua đây.
  *
  * `upsert` là một lệnh nguyên tử trên khoá unique `ngay`, nên hai request gần
- * như đồng thời trong lần render đầu tiên của ngày KHÔNG thể tạo ra hai hàng.
- * Chỉ khi hàng chưa tồn tại mới đọc Mẫu hiện hành để copy giá trị Task vào —
- * copy giá trị, không share hàng/FK với `Task` của Mẫu (AD-2).
+ * như đồng thời KHÔNG thể tạo ra hai hàng. Chỉ khi hàng chưa tồn tại mới đọc
+ * Mẫu hiện hành để copy giá trị Task vào — copy giá trị, không share hàng/FK
+ * với `Task` của Mẫu (AD-2).
+ */
+async function taoHangLichTrinhNgay(moc: Date): Promise<{ id: number }> {
+  const daCo = await prisma.lichTrinhNgay.findUnique({
+    where: { ngay: moc },
+    select: { id: true },
+  });
+  if (daCo) return { id: daCo.id };
+
+  const mauTasks = await layMauLichTrinh();
+
+  const row = await prisma.lichTrinhNgay.upsert({
+    where: { ngay: moc },
+    create: {
+      ngay: moc,
+      tasks: {
+        create: mauTasks.map(({ ten, gioBatDau, gioKetThuc, mucUuTien }) => ({
+          ten,
+          gioBatDau,
+          gioKetThuc,
+          mucUuTien,
+        })),
+      },
+    },
+    // Nhánh này chỉ chạy khi một request khác vừa thắng cuộc đua tạo hàng
+    // giữa lúc `findUnique` ở trên và `upsert` này — không ghi gì thêm.
+    update: {},
+  });
+
+  lamMoiManHinh();
+  return { id: row.id };
+}
+
+/**
+ * Khởi tạo lười Lịch trình ngày cho HÔM NAY (giờ VN) — gọi từ đường đọc
+ * (`/lich-trinh`'s Server Component), không phải nút bấm.
  */
 export async function taoLichTrinhNgayTuMau(): Promise<KetQua<{ id: number }>> {
-  return boiCanhGhi(async () => {
-    const moc = layMocNgayVN();
+  return boiCanhGhi(async () => thanhCong(await taoHangLichTrinhNgay(layMocNgayVN())));
+}
 
-    const daCo = await prisma.lichTrinhNgay.findUnique({
-      where: { ngay: moc },
-      select: { id: true },
-    });
-    if (daCo) {
-      return thanhCong({ id: daCo.id });
-    }
+/**
+ * Lên lịch trước cho MỘT ngày tương lai (nút "Lên lịch cho ngày này") — tạo
+ * hàng từ Mẫu hiện hành tại thời điểm bấm. Chỉ nhận ngày SAU hôm nay và
+ * không xa quá `SO_NGAY_LEN_LICH_TRUOC_TOI_DA` ngày; ngày quá khứ đã bỏ qua
+ * vẫn không được tạo bù (giữ nguyên ràng buộc lịch sử của Story 2). Ngày đã
+ * có hàng -> trả lại id sẵn có, không ghi đè.
+ */
+export async function lenLichNgayTuongLai(
+  ngayThamSo: unknown,
+): Promise<KetQua<{ id: number }>> {
+  const moc = typeof ngayThamSo === "string" ? tuThamSoNgay(ngayThamSo) : null;
+  if (moc === null) {
+    return thatBai("NGAY_KHONG_HOP_LE", "Ngày không hợp lệ.");
+  }
 
-    const mauTasks = await layMauLichTrinh();
+  const homNay = layMocNgayVN();
+  if (moc.getTime() <= homNay.getTime()) {
+    return thatBai(
+      "NGAY_KHONG_PHAI_TUONG_LAI",
+      "Chỉ lên lịch trước được cho các ngày sau hôm nay.",
+    );
+  }
+  if (moc.getTime() > themNgay(homNay, SO_NGAY_LEN_LICH_TRUOC_TOI_DA).getTime()) {
+    return thatBai(
+      "NGAY_QUA_XA",
+      `Chỉ lên lịch trước tối đa ${SO_NGAY_LEN_LICH_TRUOC_TOI_DA} ngày.`,
+    );
+  }
 
-    const row = await prisma.lichTrinhNgay.upsert({
-      where: { ngay: moc },
-      create: {
-        ngay: moc,
-        tasks: {
-          create: mauTasks.map(({ ten, thoiHan, mucUuTien }) => ({
-            ten,
-            thoiHan,
-            mucUuTien,
-          })),
-        },
-      },
-      // Nhánh này chỉ chạy khi một request khác vừa thắng cuộc đua tạo hàng
-      // giữa lúc `findUnique` ở trên và `upsert` này — không ghi gì thêm.
-      update: {},
-    });
-
-    lamMoiManHinh();
-    return thanhCong({ id: row.id });
-  });
+  return boiCanhGhi(async () => thanhCong(await taoHangLichTrinhNgay(moc)));
 }
 
 type DuLieuTaskNgay = DuLieuTask;
@@ -281,7 +340,8 @@ export async function themTaskNgay(
     return thanhCong({
       id: task.id,
       ten: task.ten,
-      thoiHan: task.thoiHan,
+      gioBatDau: task.gioBatDau,
+      gioKetThuc: task.gioKetThuc,
       mucUuTien: daKiemTra.data.mucUuTien,
       daXong: task.daXong,
     });
@@ -332,10 +392,59 @@ export async function suaTaskNgay(
     return thanhCong({
       id,
       ten: daKiemTra.data.ten,
-      thoiHan: daKiemTra.data.thoiHan,
+      gioBatDau: daKiemTra.data.gioBatDau,
+      gioKetThuc: daKiemTra.data.gioKetThuc,
       mucUuTien: daKiemTra.data.mucUuTien,
       daXong: task.daXong,
     });
+  });
+}
+
+/** Giới hạn độ dài Ghi chú của một ngày (mirror `DO_DAI_GHI_CHU_TOI_DA`,
+ * app/hoc-tap/actions.ts). */
+const DO_DAI_GHI_CHU_NGAY_TOI_DA = 5000;
+
+/**
+ * Lưu Ghi chú cho cả MỘT ngày (note lại những điều đã làm). Ghi đè ghi chú
+ * cũ; chuỗi rỗng/chỉ khoảng trắng xoá ghi chú (`null`). Chỉ ghi vào hàng
+ * `LichTrinhNgay` đã tồn tại — không tự tạo hàng mới (việc đó chỉ thuộc
+ * `taoLichTrinhNgayTuMau`, AD-3 ngoại lệ 2).
+ */
+export async function luuGhiChuNgay(
+  lichTrinhNgayId: unknown,
+  ghiChuTho: unknown,
+): Promise<KetQua<{ ghiChu: string | null }>> {
+  if (typeof lichTrinhNgayId !== "number" || !Number.isInteger(lichTrinhNgayId)) {
+    return thatBai("ID_KHONG_HOP_LE", "Lịch trình ngày không hợp lệ.");
+  }
+  if (ghiChuTho !== null && ghiChuTho !== undefined && typeof ghiChuTho !== "string") {
+    return thatBai("DU_LIEU_KHONG_HOP_LE", "Dữ liệu gửi lên không hợp lệ.");
+  }
+
+  const daTrim = (ghiChuTho ?? "").trim();
+  if (daTrim.length > DO_DAI_GHI_CHU_NGAY_TOI_DA) {
+    return thatBai(
+      "GHI_CHU_QUA_DAI",
+      `Ghi chú tối đa ${DO_DAI_GHI_CHU_NGAY_TOI_DA} ký tự.`,
+      "ghiChu",
+    );
+  }
+  const ghiChu = daTrim.length > 0 ? daTrim : null;
+
+  return boiCanhGhi(async () => {
+    const daSua = await prisma.lichTrinhNgay.updateMany({
+      where: { id: lichTrinhNgayId },
+      data: { ghiChu },
+    });
+    if (daSua.count === 0) {
+      return thatBai(
+        "KHONG_CO_LICH_TRINH_NGAY",
+        "Chưa có Lịch trình ngày cho ngày này.",
+      );
+    }
+
+    lamMoiManHinh();
+    return thanhCong({ ghiChu });
   });
 }
 

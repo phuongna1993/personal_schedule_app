@@ -26,7 +26,7 @@ export async function layMauLichTrinh(): Promise<TaskMau[]> {
     include: {
       tasks: {
         // "HH:mm" zero-padded nên sắp theo chuỗi trùng khớp sắp theo thời gian.
-        orderBy: [{ thoiHan: "asc" }, { id: "asc" }],
+        orderBy: [{ gioBatDau: "asc" }, { id: "asc" }],
       },
     },
   });
@@ -36,7 +36,8 @@ export async function layMauLichTrinh(): Promise<TaskMau[]> {
   return mau.tasks.map((task) => ({
     id: task.id,
     ten: task.ten,
-    thoiHan: task.thoiHan,
+    gioBatDau: task.gioBatDau,
+    gioKetThuc: task.gioKetThuc,
     // Cột là String vì SQLite không có enum; chuẩn hoá lại về union ở biên đọc.
     mucUuTien: laMucUuTien(task.mucUuTien) ? task.mucUuTien : "TrungBinh",
   }));
@@ -53,6 +54,8 @@ export type LichTrinhNgayDuLieu = {
   tonTai: boolean;
   /** `null` khi `tonTai` là `false` — không có hàng để gắn Task mới vào. */
   id: number | null;
+  /** Ghi chú cả ngày; `null` khi chưa nhập hoặc `tonTai` là `false`. */
+  ghiChu: string | null;
   tasks: TaskNgay[];
   soDaXong: number;
   tongSo: number;
@@ -73,19 +76,28 @@ export async function layLichTrinhNgay(
     where: { ngay: moc },
     include: {
       tasks: {
-        orderBy: [{ thoiHan: "asc" }, { id: "asc" }],
+        orderBy: [{ gioBatDau: "asc" }, { id: "asc" }],
       },
     },
   });
 
   if (!row) {
-    return { ngay: moc, tonTai: false, id: null, tasks: [], soDaXong: 0, tongSo: 0 };
+    return {
+      ngay: moc,
+      tonTai: false,
+      id: null,
+      ghiChu: null,
+      tasks: [],
+      soDaXong: 0,
+      tongSo: 0,
+    };
   }
 
   const tasks: TaskNgay[] = row.tasks.map((task) => ({
     id: task.id,
     ten: task.ten,
-    thoiHan: task.thoiHan,
+    gioBatDau: task.gioBatDau,
+    gioKetThuc: task.gioKetThuc,
     mucUuTien: laMucUuTien(task.mucUuTien) ? task.mucUuTien : "TrungBinh",
     daXong: task.daXong,
   }));
@@ -94,6 +106,7 @@ export async function layLichTrinhNgay(
     ngay: moc,
     tonTai: true,
     id: row.id,
+    ghiChu: row.ghiChu,
     tasks,
     soDaXong: tasks.filter((t) => t.daXong).length,
     tongSo: tasks.length,

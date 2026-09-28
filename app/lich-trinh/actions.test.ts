@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Unit test cho các Server Action của module Lịch trình.
@@ -26,6 +26,7 @@ const { prismaMock, revalidatePathMock } = vi.hoisted(() => ({
     lichTrinhNgay: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
+      updateMany: vi.fn(),
     },
     taskNgay: {
       create: vi.fn(),
@@ -50,11 +51,14 @@ const {
   suaTaskNgay,
   xoaTaskNgay,
   danhDauTask,
+  luuGhiChuNgay,
+  lenLichNgayTuongLai,
 } = await import("./actions");
 
 const TASK_HOP_LE = {
   ten: "Đưa bé đi học",
-  thoiHan: "07:15",
+  gioBatDau: "07:15",
+  gioKetThuc: "07:45",
   mucUuTien: "TrungBinh",
 };
 
@@ -87,7 +91,7 @@ beforeEach(() => {
   const taskNgayHienTai = {
     id: 3,
     ten: "Đưa bé đi học",
-    thoiHan: "20:00",
+    gioBatDau: "20:00",
     mucUuTien: "TrungBinh",
     daXong: false,
     lichTrinhNgayId: 99,
@@ -118,14 +122,47 @@ describe("themTask", () => {
     expect(prismaMock.task.create).not.toHaveBeenCalled();
   });
 
-  it("chặn Thời hạn không đúng dạng HH:mm", async () => {
-    const ketQua = await themTask({ ...TASK_HOP_LE, thoiHan: "25:00" });
+  it("chặn giờ bắt đầu không đúng dạng HH:mm", async () => {
+    const ketQua = await themTask({ ...TASK_HOP_LE, gioBatDau: "25:00" });
 
     expect(ketQua.ok).toBe(false);
     if (ketQua.ok) throw new Error("unreachable");
-    expect(ketQua.error.code).toBe("THOI_HAN_KHONG_HOP_LE");
-    expect(ketQua.error.field).toBe("thoiHan");
+    expect(ketQua.error.code).toBe("GIO_BAT_DAU_KHONG_HOP_LE");
+    expect(ketQua.error.field).toBe("gioBatDau");
     expect(prismaMock.task.create).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "7:5", "24:00", undefined])(
+    "chặn giờ kết thúc thiếu/sai dạng (%s)",
+    async (gioKetThuc) => {
+      const ketQua = await themTask({ ...TASK_HOP_LE, gioKetThuc } as never);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("GIO_KET_THUC_KHONG_HOP_LE");
+      expect(ketQua.error.field).toBe("gioKetThuc");
+      expect(prismaMock.task.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["kết thúc trước bắt đầu", "09:00", "08:00"],
+    ["kết thúc bằng bắt đầu", "09:00", "09:00"],
+    ["vắt qua nửa đêm", "23:00", "01:00"],
+  ])("chặn khung giờ %s -> GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU", async (_, gioBatDau, gioKetThuc) => {
+    const ketQua = await themTask({ ...TASK_HOP_LE, gioBatDau, gioKetThuc });
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU");
+    expect(ketQua.error.field).toBe("gioKetThuc");
+    expect(prismaMock.task.create).not.toHaveBeenCalled();
+  });
+
+  it("chấp nhận khung giờ sát biên trong ngày (00:00 ~ 23:59)", async () => {
+    const ketQua = await themTask({ ...TASK_HOP_LE, gioBatDau: "00:00", gioKetThuc: "23:59" });
+
+    expect(ketQua.ok).toBe(true);
   });
 
   it("chặn Mức ưu tiên ngoài 3 giá trị cố định", async () => {
@@ -145,13 +182,14 @@ describe("themTask", () => {
     expect(ketQua.data).toMatchObject({
       id: 42,
       ten: "Nấu tối",
-      thoiHan: "07:15",
+      gioBatDau: "07:15",
       mucUuTien: "TrungBinh",
     });
     expect(prismaMock.task.create).toHaveBeenCalledWith({
       data: {
         ten: "Nấu tối",
-        thoiHan: "07:15",
+        gioBatDau: "07:15",
+        gioKetThuc: "07:45",
         mucUuTien: "TrungBinh",
         mauLichTrinhId: 1,
       },
@@ -232,14 +270,19 @@ describe("suaTask", () => {
   });
 
   it("chỉ cập nhật đúng Task được chỉ định, và phải thuộc Mẫu của module", async () => {
-    const ketQua = await suaTask(3, { ...TASK_HOP_LE, thoiHan: "20:00" });
+    const ketQua = await suaTask(3, { ...TASK_HOP_LE, gioBatDau: "20:00", gioKetThuc: "20:30" });
 
     expect(ketQua.ok).toBe(true);
     // `mauLichTrinhId` nằm trong chính câu truy vấn: bất biến AD-1 được DB ép,
     // không chỉ là quy ước gọi hàm.
     expect(prismaMock.task.updateMany).toHaveBeenCalledWith({
       where: { id: 3, mauLichTrinhId: 1 },
-      data: { ten: "Đưa bé đi học", thoiHan: "20:00", mucUuTien: "TrungBinh" },
+      data: {
+        ten: "Đưa bé đi học",
+        gioBatDau: "20:00",
+        gioKetThuc: "20:30",
+        mucUuTien: "TrungBinh",
+      },
     });
   });
 
@@ -310,8 +353,9 @@ describe("taoLichTrinhNgayTuMau", () => {
     prismaMock.mauLichTrinh.findFirst.mockResolvedValue({
       id: 1,
       tasks: [
-        { id: 10, ten: "Đưa bé đi học", thoiHan: "07:00", mucUuTien: "Cao" },
-        { id: 11, ten: "Nấu tối", thoiHan: "18:00", mucUuTien: "TrungBinh" },
+        { id: 10, ten: "Đưa bé đi học", gioBatDau: "07:00", gioKetThuc: "07:30", mucUuTien: "Cao" },
+        // Task cũ chưa có giờ kết thúc -> copy nguyên `null` sang ngày mới.
+        { id: 11, ten: "Nấu tối", gioBatDau: "18:00", gioKetThuc: null, mucUuTien: "TrungBinh" },
       ],
     });
 
@@ -325,8 +369,8 @@ describe("taoLichTrinhNgayTuMau", () => {
         create: expect.objectContaining({
           tasks: {
             create: [
-              { ten: "Đưa bé đi học", thoiHan: "07:00", mucUuTien: "Cao" },
-              { ten: "Nấu tối", thoiHan: "18:00", mucUuTien: "TrungBinh" },
+              { ten: "Đưa bé đi học", gioBatDau: "07:00", gioKetThuc: "07:30", mucUuTien: "Cao" },
+              { ten: "Nấu tối", gioBatDau: "18:00", gioKetThuc: null, mucUuTien: "TrungBinh" },
             ],
           },
         }),
@@ -379,7 +423,8 @@ describe("taoLichTrinhNgayTuMau", () => {
 
 const TASK_NGAY_HOP_LE = {
   ten: "Đưa bé đi học",
-  thoiHan: "07:15",
+  gioBatDau: "07:15",
+  gioKetThuc: "07:45",
   mucUuTien: "TrungBinh",
 };
 
@@ -418,13 +463,19 @@ describe("suaTaskNgay", () => {
   it("chỉ cập nhật Task khớp CẢ id lẫn lichTrinhNgayId (ownership-scoped)", async () => {
     const ketQua = await suaTaskNgay(3, 99, {
       ...TASK_NGAY_HOP_LE,
-      thoiHan: "20:00",
+      gioBatDau: "20:00",
+      gioKetThuc: "20:30",
     });
 
     expect(ketQua.ok).toBe(true);
     expect(prismaMock.taskNgay.updateMany).toHaveBeenCalledWith({
       where: { id: 3, lichTrinhNgayId: 99 },
-      data: { ten: "Đưa bé đi học", thoiHan: "20:00", mucUuTien: "TrungBinh" },
+      data: {
+        ten: "Đưa bé đi học",
+        gioBatDau: "20:00",
+        gioKetThuc: "20:30",
+        mucUuTien: "TrungBinh",
+      },
     });
   });
 
@@ -443,7 +494,7 @@ describe("suaTaskNgay", () => {
     prismaMock.taskNgay.findFirst.mockResolvedValue({
       id: 3,
       ten: "x",
-      thoiHan: "20:00",
+      gioBatDau: "20:00",
       mucUuTien: "TrungBinh",
       daXong: true,
       lichTrinhNgayId: 99,
@@ -554,4 +605,159 @@ describe("danhDauTask", () => {
     if (ketQua.ok) throw new Error("unreachable");
     expect(ketQua.error.code).toBe("LOI_HE_THONG");
   });
+});
+
+describe("luuGhiChuNgay", () => {
+  it("trim rồi lưu ghi chú vào đúng hàng LichTrinhNgay, revalidate", async () => {
+    prismaMock.lichTrinhNgay.updateMany.mockResolvedValue({ count: 1 });
+
+    const ketQua = await luuGhiChuNgay(99, "  Đã chạy 5km\nĐọc sách 30p  ");
+
+    expect(ketQua).toEqual({ ok: true, data: { ghiChu: "Đã chạy 5km\nĐọc sách 30p" } });
+    expect(prismaMock.lichTrinhNgay.updateMany).toHaveBeenCalledWith({
+      where: { id: 99 },
+      data: { ghiChu: "Đã chạy 5km\nĐọc sách 30p" },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh");
+  });
+
+  it.each(["", "   \n ", null, undefined])("ghi chú rỗng (%s) -> xoá ghi chú (null)", async (ghiChu) => {
+    prismaMock.lichTrinhNgay.updateMany.mockResolvedValue({ count: 1 });
+
+    const ketQua = await luuGhiChuNgay(99, ghiChu);
+
+    expect(ketQua).toEqual({ ok: true, data: { ghiChu: null } });
+    expect(prismaMock.lichTrinhNgay.updateMany).toHaveBeenCalledWith({
+      where: { id: 99 },
+      data: { ghiChu: null },
+    });
+  });
+
+  it("chấp nhận đúng 5000 ký tự, chặn 5001 ký tự -> GHI_CHU_QUA_DAI, không ghi", async () => {
+    prismaMock.lichTrinhNgay.updateMany.mockResolvedValue({ count: 1 });
+    expect((await luuGhiChuNgay(99, "a".repeat(5000))).ok).toBe(true);
+
+    prismaMock.lichTrinhNgay.updateMany.mockClear();
+    const ketQua = await luuGhiChuNgay(99, "a".repeat(5001));
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("GHI_CHU_QUA_DAI");
+    expect(ketQua.error.field).toBe("ghiChu");
+    expect(prismaMock.lichTrinhNgay.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("chặn id không hợp lệ và ghi chú không phải chuỗi trước khi chạm Prisma", async () => {
+    const idSai = await luuGhiChuNgay("99", "x");
+    const ghiChuSai = await luuGhiChuNgay(99, { html: "<b>" });
+
+    expect(idSai.ok || ghiChuSai.ok).toBe(false);
+    if (idSai.ok || ghiChuSai.ok) throw new Error("unreachable");
+    expect(idSai.error.code).toBe("ID_KHONG_HOP_LE");
+    expect(ghiChuSai.error.code).toBe("DU_LIEU_KHONG_HOP_LE");
+    expect(prismaMock.lichTrinhNgay.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("không có hàng LichTrinhNgay -> KHONG_CO_LICH_TRINH_NGAY, không tự tạo hàng, không revalidate", async () => {
+    prismaMock.lichTrinhNgay.updateMany.mockResolvedValue({ count: 0 });
+
+    const ketQua = await luuGhiChuNgay(12345, "x");
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("KHONG_CO_LICH_TRINH_NGAY");
+    expect(prismaMock.lichTrinhNgay.upsert).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("trả LOI_HE_THONG thay vì reject khi Prisma ném lỗi", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.lichTrinhNgay.updateMany.mockRejectedValue(new Error("SQLITE_BUSY"));
+
+    const ketQua = await luuGhiChuNgay(99, "x");
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("LOI_HE_THONG");
+  });
+});
+
+describe("lenLichNgayTuongLai", () => {
+  // Hôm nay = 29/09/2026 (10:00 giờ VN).
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-29T03:00:00.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ngày mai chưa có hàng -> tạo từ Mẫu hiện hành, đúng mốc ngày VN, revalidate", async () => {
+    prismaMock.lichTrinhNgay.findUnique.mockResolvedValue(null);
+    prismaMock.mauLichTrinh.findFirst.mockResolvedValue({
+      id: 1,
+      tasks: [{ id: 10, ten: "Tập thể dục", gioBatDau: "06:00", gioKetThuc: "06:30", mucUuTien: "Cao" }],
+    });
+
+    const ketQua = await lenLichNgayTuongLai("2026-09-30");
+
+    expect(ketQua).toEqual({ ok: true, data: { id: 99 } });
+    expect(prismaMock.lichTrinhNgay.upsert).toHaveBeenCalledWith({
+      // 30/09/2026 00:00 VN == 2026-09-29T17:00:00.000Z.
+      where: { ngay: new Date("2026-09-29T17:00:00.000Z") },
+      create: {
+        ngay: new Date("2026-09-29T17:00:00.000Z"),
+        tasks: {
+          create: [{ ten: "Tập thể dục", gioBatDau: "06:00", gioKetThuc: "06:30", mucUuTien: "Cao" }],
+        },
+      },
+      update: {},
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/lich-trinh");
+  });
+
+  it("ngày tương lai đã có hàng -> trả id sẵn có, không tạo/ghi đè", async () => {
+    prismaMock.lichTrinhNgay.findUnique.mockResolvedValue({ id: 7 });
+
+    const ketQua = await lenLichNgayTuongLai("2026-10-05");
+
+    expect(ketQua).toEqual({ ok: true, data: { id: 7 } });
+    expect(prismaMock.lichTrinhNgay.upsert).not.toHaveBeenCalled();
+  });
+
+  it("chấp nhận đúng biên 365 ngày, chặn ngày thứ 366 -> NGAY_QUA_XA", async () => {
+    prismaMock.lichTrinhNgay.findUnique.mockResolvedValue({ id: 7 });
+    expect((await lenLichNgayTuongLai("2027-09-29")).ok).toBe(true);
+
+    const ketQua = await lenLichNgayTuongLai("2027-09-30");
+
+    expect(ketQua.ok).toBe(false);
+    if (ketQua.ok) throw new Error("unreachable");
+    expect(ketQua.error.code).toBe("NGAY_QUA_XA");
+  });
+
+  it.each(["2026-09-29", "2026-09-01"])(
+    "hôm nay / quá khứ (%s) -> NGAY_KHONG_PHAI_TUONG_LAI, không tạo bù",
+    async (ngay) => {
+      const ketQua = await lenLichNgayTuongLai(ngay);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("NGAY_KHONG_PHAI_TUONG_LAI");
+      expect(prismaMock.lichTrinhNgay.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.lichTrinhNgay.upsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["2026-02-30", "30/09/2026", "", 20260930, null])(
+    "ngày sai dạng (%s) -> NGAY_KHONG_HOP_LE",
+    async (ngay) => {
+      const ketQua = await lenLichNgayTuongLai(ngay);
+
+      expect(ketQua.ok).toBe(false);
+      if (ketQua.ok) throw new Error("unreachable");
+      expect(ketQua.error.code).toBe("NGAY_KHONG_HOP_LE");
+      expect(prismaMock.lichTrinhNgay.upsert).not.toHaveBeenCalled();
+    },
+  );
 });

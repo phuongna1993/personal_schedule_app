@@ -5,21 +5,25 @@ import type { KetQua, LoiAction } from "@/lib/ketQua";
 import { suaTask, themTask, xoaTask } from "../actions";
 import {
   LOP_BADGE_UU_TIEN,
+  laKhungGioHopLe,
   MUC_UU_TIEN,
   NHAN_MUC_UU_TIEN,
   type MucUuTien,
+  nhanKhungGio,
   type TaskMau,
 } from "../model";
 
 type DuLieuForm = {
   ten: string;
-  thoiHan: string;
+  gioBatDau: string;
+  gioKetThuc: string;
   mucUuTien: MucUuTien;
 };
 
 const FORM_TRONG: DuLieuForm = {
   ten: "",
-  thoiHan: "08:00",
+  gioBatDau: "08:00",
+  gioKetThuc: "08:30",
   mucUuTien: "TrungBinh",
 };
 
@@ -31,6 +35,14 @@ const FORM_TRONG: DuLieuForm = {
 const LOI_KET_NOI: LoiAction = {
   code: "LOI_KET_NOI",
   message: "Không lưu được, thử lại.",
+};
+
+/** Mirror `GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU` của `kiemTraTask()`
+ * (app/lich-trinh/actions.ts) — cùng ngày nên cũng chặn luôn vắt qua đêm. */
+const LOI_KHUNG_GIO: LoiAction = {
+  code: "GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU",
+  message: "Giờ kết thúc phải sau giờ bắt đầu, trong cùng một ngày.",
+  field: "gioKetThuc",
 };
 
 /**
@@ -96,7 +108,9 @@ export default function TrinhSoanThaoMau({ tasks }: { tasks: TaskMau[] }) {
             tieuDe={`Sửa Task · ${task.ten}`}
             banDau={{
               ten: task.ten,
-              thoiHan: task.thoiHan,
+              gioBatDau: task.gioBatDau,
+              // Task cũ chưa có giờ kết thúc -> để trống, buộc nhập khi sửa.
+              gioKetThuc: task.gioKetThuc ?? "",
               mucUuTien: task.mucUuTien,
             }}
             nhanLuu="Lưu thay đổi"
@@ -107,7 +121,7 @@ export default function TrinhSoanThaoMau({ tasks }: { tasks: TaskMau[] }) {
           />
         ) : (
           <div className="task-row" key={task.id}>
-            <span className="ttime">{task.thoiHan}</span>
+            <span className="ttime khung">{nhanKhungGio(task)}</span>
             <span className="tname">{task.ten}</span>
             <span className={`badge-pri ${LOP_BADGE_UU_TIEN[task.mucUuTien]}`}>
               {NHAN_MUC_UU_TIEN[task.mucUuTien]}
@@ -195,10 +209,20 @@ function FormTask({
   const [loi, setLoi] = useState<LoiAction | null>(null);
   const [dangGui, batDau] = useTransition();
   const idForm = useId();
+  // Báo ngay khi đang chọn giờ (cả hai ô đã có giá trị) thay vì đợi submit.
+  const khungGioSai =
+    gia.gioBatDau !== "" &&
+    gia.gioKetThuc !== "" &&
+    !laKhungGioHopLe(gia.gioBatDau, gia.gioKetThuc);
 
   function gui(su_kien: React.FormEvent<HTMLFormElement>) {
     su_kien.preventDefault();
     setLoi(null);
+    // Chặn sớm ở client (server vẫn kiểm tra lại độc lập trong `kiemTraTask`).
+    if (!laKhungGioHopLe(gia.gioBatDau, gia.gioKetThuc)) {
+      setLoi(LOI_KHUNG_GIO);
+      return;
+    }
     batDau(async () => {
       try {
         const ketQua = await onLuu(gia);
@@ -237,17 +261,35 @@ function FormTask({
           />
         </div>
         <div className="field narrow">
-          <label htmlFor={`${idForm}-thoi-han`}>Thời hạn</label>
+          <label htmlFor={`${idForm}-gio-bat-dau`}>Từ</label>
           <input
-            id={`${idForm}-thoi-han`}
+            id={`${idForm}-gio-bat-dau`}
             className="input"
             type="time"
-            value={gia.thoiHan}
-            aria-invalid={loi?.field === "thoiHan" || undefined}
-            onChange={(e) => setGia({ ...gia, thoiHan: e.target.value })}
+            value={gia.gioBatDau}
+            aria-invalid={loi?.field === "gioBatDau" || undefined}
+            onChange={(e) => setGia({ ...gia, gioBatDau: e.target.value })}
+          />
+        </div>
+        <div className="field narrow">
+          <label htmlFor={`${idForm}-gio-ket-thuc`}>Đến</label>
+          <input
+            id={`${idForm}-gio-ket-thuc`}
+            className="input"
+            type="time"
+            value={gia.gioKetThuc}
+            min={gia.gioBatDau || undefined}
+            aria-invalid={loi?.field === "gioKetThuc" || khungGioSai || undefined}
+            onChange={(e) => setGia({ ...gia, gioKetThuc: e.target.value })}
           />
         </div>
       </div>
+
+      {khungGioSai ? (
+        <p className="field-error" role="alert">
+          {LOI_KHUNG_GIO.message}
+        </p>
+      ) : null}
 
       <div className="field">
         <span id={`${idForm}-nhan-uu-tien`} className="nhan-uu-tien">
@@ -284,7 +326,7 @@ function FormTask({
       ) : null}
 
       <div className="form-actions">
-        <button className="btn" type="submit" disabled={dangGui}>
+        <button className="btn" type="submit" disabled={dangGui || khungGioSai}>
           {nhanLuu}
         </button>
         <button

@@ -3,24 +3,35 @@
 import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import type { KetQua, LoiAction } from "@/lib/ketQua";
-import { danhDauTask, suaTaskNgay, themTaskNgay, xoaTaskNgay } from "./actions";
+import {
+  danhDauTask,
+  lenLichNgayTuongLai,
+  luuGhiChuNgay,
+  suaTaskNgay,
+  themTaskNgay,
+  xoaTaskNgay,
+} from "./actions";
 import {
   LOP_BADGE_UU_TIEN,
+  laKhungGioHopLe,
   MUC_UU_TIEN,
   NHAN_MUC_UU_TIEN,
   type MucUuTien,
+  nhanKhungGio,
   type TaskNgay,
 } from "./model";
 
 type DuLieuForm = {
   ten: string;
-  thoiHan: string;
+  gioBatDau: string;
+  gioKetThuc: string;
   mucUuTien: MucUuTien;
 };
 
 const FORM_TRONG: DuLieuForm = {
   ten: "",
-  thoiHan: "08:00",
+  gioBatDau: "08:00",
+  gioKetThuc: "08:30",
   mucUuTien: "TrungBinh",
 };
 
@@ -31,6 +42,14 @@ const FORM_TRONG: DuLieuForm = {
 const LOI_KET_NOI: LoiAction = {
   code: "LOI_KET_NOI",
   message: "Không lưu được, thử lại.",
+};
+
+/** Mirror `GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU` của `kiemTraTask()`
+ * (app/lich-trinh/actions.ts) — cùng ngày nên cũng chặn luôn vắt qua đêm. */
+const LOI_KHUNG_GIO: LoiAction = {
+  code: "GIO_KET_THUC_KHONG_SAU_GIO_BAT_DAU",
+  message: "Giờ kết thúc phải sau giờ bắt đầu, trong cùng một ngày.",
+  field: "gioKetThuc",
 };
 
 /** Dùng khi không có `lichTrinhNgayId` để gắn thao tác ghi vào (xem `tonTai`). */
@@ -53,22 +72,30 @@ const LOI_KHONG_CO_HANG: KetQua<never> = {
  */
 export default function LichTrinhNgayView({
   lichTrinhNgayId,
+  ghiChu,
   tonTai,
   tasks,
   soDaXong,
   tongSo,
   nhanNgay,
   laHomNay,
+  laTuongLai,
+  ngayThamSo,
   hrefTruoc,
   hrefSau,
 }: {
   lichTrinhNgayId: number | null;
+  ghiChu: string | null;
   tonTai: boolean;
   tasks: TaskNgay[];
   soDaXong: number;
   tongSo: number;
   nhanNgay: string;
   laHomNay: boolean;
+  /** Ngày đang xem sau hôm nay — cho phép "Lên lịch cho ngày này". */
+  laTuongLai: boolean;
+  /** `yyyy-mm-dd` của ngày đang xem, gửi cho `lenLichNgayTuongLai`. */
+  ngayThamSo: string;
   hrefTruoc: string | null;
   hrefSau: string | null;
 }) {
@@ -116,6 +143,19 @@ export default function LichTrinhNgayView({
         if (!ketQua.ok) setLoiHang(ketQua.error);
       } catch (loi) {
         console.error("[lich-trinh] xoaTaskNgay thất bại:", loi);
+        setLoiHang(LOI_KET_NOI);
+      }
+    });
+  }
+
+  function lenLich() {
+    setLoiHang(null);
+    batDau(async () => {
+      try {
+        const ketQua = await lenLichNgayTuongLai(ngayThamSo);
+        if (!ketQua.ok) setLoiHang(ketQua.error);
+      } catch (loi) {
+        console.error("[lich-trinh] lenLichNgayTuongLai thất bại:", loi);
         setLoiHang(LOI_KET_NOI);
       }
     });
@@ -178,7 +218,9 @@ export default function LichTrinhNgayView({
             ? tongSo === 0
               ? "Chưa có Task nào cho ngày này"
               : `${tongSo} việc · sửa ở đây không ảnh hưởng Mẫu lịch trình`
-            : "Ngày này chưa có Lịch trình — chưa từng ghé qua ngày này"}
+            : laTuongLai
+              ? "Ngày này chưa được lên lịch"
+              : "Ngày này chưa có Lịch trình — chưa từng ghé qua ngày này"}
         </p>
 
         {loiHang ? (
@@ -187,7 +229,22 @@ export default function LichTrinhNgayView({
           </p>
         ) : null}
 
-        {!tonTai ? (
+        {!tonTai && laTuongLai ? (
+          <div className="empty-row">
+            <p className="empty-txt">
+              Lên lịch trước cho ngày này — các Task được copy từ Mẫu lịch
+              trình hiện tại, sau đó sửa/thêm/xoá riêng cho ngày này.
+            </p>
+            <button
+              type="button"
+              className="btn"
+              disabled={dangChay}
+              onClick={lenLich}
+            >
+              Lên lịch cho ngày này
+            </button>
+          </div>
+        ) : !tonTai ? (
           <p className="empty-txt">
             Không có Lịch trình ngày nào được lưu cho ngày này — app không tự
             tạo lại các ngày đã bỏ qua trong quá khứ.
@@ -201,7 +258,9 @@ export default function LichTrinhNgayView({
                   tieuDe={`Sửa Task · ${task.ten}`}
                   banDau={{
                     ten: task.ten,
-                    thoiHan: task.thoiHan,
+                    gioBatDau: task.gioBatDau,
+                    // Task cũ chưa có giờ kết thúc -> để trống, buộc nhập khi sửa.
+                    gioKetThuc: task.gioKetThuc ?? "",
                     mucUuTien: task.mucUuTien,
                   }}
                   nhanLuu="Lưu thay đổi"
@@ -227,7 +286,7 @@ export default function LichTrinhNgayView({
                     onChange={() => doiDaXong(task)}
                     aria-label={`${task.ten}, mức ưu tiên ${NHAN_MUC_UU_TIEN[task.mucUuTien]}`}
                   />
-                  <span className="ttime">{task.thoiHan}</span>
+                  <span className="ttime khung">{nhanKhungGio(task)}</span>
                   <span className="tname">{task.ten}</span>
                   <span
                     className={`badge-pri ${LOP_BADGE_UU_TIEN[task.mucUuTien]}`}
@@ -294,7 +353,9 @@ export default function LichTrinhNgayView({
 
             <div className="mini-progress-wrap">
               <div className="mini-progress-label">
-                <span>{laHomNay ? "Hôm nay đã làm" : "Đã làm"}</span>
+                <span>
+                  {laHomNay ? "Hôm nay đã làm" : laTuongLai ? "Đã lên lịch" : "Đã làm"}
+                </span>
                 <span>
                   {soDaXong}/{tongSo}
                 </span>
@@ -306,7 +367,123 @@ export default function LichTrinhNgayView({
           </>
         )}
       </section>
+
+      {/* `key` theo ngày: đổi ngày qua ◀/▶ thì form ghi chú mount lại với giá
+          trị của ngày mới, không giữ bản nháp của ngày trước. */}
+      <GhiChuNgay
+        key={lichTrinhNgayId ?? "khong-co"}
+        lichTrinhNgayId={lichTrinhNgayId}
+        ghiChuBanDau={ghiChu}
+        laHomNay={laHomNay}
+        laTuongLai={laTuongLai}
+      />
     </>
+  );
+}
+
+/** Mirror `DO_DAI_GHI_CHU_NGAY_TOI_DA` ở `app/lich-trinh/actions.ts`. */
+const DO_DAI_GHI_CHU_NGAY_TOI_DA = 5000;
+
+/**
+ * Ghi chú tự do cho cả ngày — note lại những điều đã làm. Lưu bằng nút
+ * (không autosave) để khớp mọi form khác của app; "Đã lưu" hiện tới khi gõ
+ * tiếp. Vô hiệu khi ngày chưa có hàng `LichTrinhNgay` (`lichTrinhNgayId`
+ * null) — không có chỗ để ghi.
+ */
+function GhiChuNgay({
+  lichTrinhNgayId,
+  ghiChuBanDau,
+  laHomNay,
+  laTuongLai,
+}: {
+  lichTrinhNgayId: number | null;
+  ghiChuBanDau: string | null;
+  laHomNay: boolean;
+  laTuongLai: boolean;
+}) {
+  const [giaTri, setGiaTri] = useState(ghiChuBanDau ?? "");
+  const [daLuu, setDaLuu] = useState(false);
+  const [loi, setLoi] = useState<LoiAction | null>(null);
+  const [dangGui, batDau] = useTransition();
+  const idForm = useId();
+
+  const khongCoHang = lichTrinhNgayId === null;
+  const chuaDoi = giaTri.trim() === (ghiChuBanDau ?? "");
+
+  function gui(su_kien: React.FormEvent<HTMLFormElement>) {
+    su_kien.preventDefault();
+    if (lichTrinhNgayId === null) return;
+    setLoi(null);
+    setDaLuu(false);
+    batDau(async () => {
+      try {
+        const ketQua = await luuGhiChuNgay(lichTrinhNgayId, giaTri);
+        if (ketQua.ok) {
+          setGiaTri(ketQua.data.ghiChu ?? "");
+          setDaLuu(true);
+        } else {
+          setLoi(ketQua.error);
+        }
+      } catch (loiGoi) {
+        console.error("[lich-trinh] luuGhiChuNgay thất bại:", loiGoi);
+        setLoi(LOI_KET_NOI);
+      }
+    });
+  }
+
+  return (
+    <section className="card" aria-labelledby={`${idForm}-tieu-de`}>
+      <h2 id={`${idForm}-tieu-de`}>Ghi chú ngày</h2>
+      <p className="sub">
+        {khongCoHang
+          ? "Ngày này chưa có Lịch trình nên chưa ghi chú được"
+          : laHomNay
+            ? "Note lại những điều đã làm hôm nay"
+            : laTuongLai
+              ? "Note trước những điều cần nhớ cho ngày này"
+              : "Note lại những điều đã làm trong ngày này"}
+      </p>
+
+      <form className="task-form" onSubmit={gui} noValidate>
+        <textarea
+          className="note-field ghi-chu-ngay"
+          rows={6}
+          aria-labelledby={`${idForm}-tieu-de`}
+          placeholder="Hôm nay đã làm được gì, việc gì còn dở, điều gì đáng nhớ…"
+          value={giaTri}
+          maxLength={DO_DAI_GHI_CHU_NGAY_TOI_DA}
+          disabled={khongCoHang}
+          aria-invalid={loi?.field === "ghiChu" || undefined}
+          onChange={(e) => {
+            setDaLuu(false);
+            setGiaTri(e.target.value);
+          }}
+        />
+        {giaTri.length > 0 ? (
+          <p className="sub">
+            {giaTri.length.toLocaleString("vi-VN")}/
+            {DO_DAI_GHI_CHU_NGAY_TOI_DA.toLocaleString("vi-VN")} ký tự
+          </p>
+        ) : null}
+
+        {loi ? (
+          <p className="field-error" role="alert">
+            {loi.message}
+          </p>
+        ) : null}
+
+        <div className="form-actions">
+          <button
+            className="btn"
+            type="submit"
+            disabled={khongCoHang || dangGui || chuaDoi}
+          >
+            Lưu ghi chú
+          </button>
+          {daLuu ? <span className="saved-tag">Đã lưu</span> : null}
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -333,10 +510,20 @@ function FormTaskNgay({
   const [loi, setLoi] = useState<LoiAction | null>(null);
   const [dangGui, batDau] = useTransition();
   const idForm = useId();
+  // Báo ngay khi đang chọn giờ (cả hai ô đã có giá trị) thay vì đợi submit.
+  const khungGioSai =
+    gia.gioBatDau !== "" &&
+    gia.gioKetThuc !== "" &&
+    !laKhungGioHopLe(gia.gioBatDau, gia.gioKetThuc);
 
   function gui(su_kien: React.FormEvent<HTMLFormElement>) {
     su_kien.preventDefault();
     setLoi(null);
+    // Chặn sớm ở client (server vẫn kiểm tra lại độc lập trong `kiemTraTask`).
+    if (!laKhungGioHopLe(gia.gioBatDau, gia.gioKetThuc)) {
+      setLoi(LOI_KHUNG_GIO);
+      return;
+    }
     batDau(async () => {
       try {
         const ketQua = await onLuu(gia);
@@ -375,17 +562,35 @@ function FormTaskNgay({
           />
         </div>
         <div className="field narrow">
-          <label htmlFor={`${idForm}-thoi-han`}>Thời hạn</label>
+          <label htmlFor={`${idForm}-gio-bat-dau`}>Từ</label>
           <input
-            id={`${idForm}-thoi-han`}
+            id={`${idForm}-gio-bat-dau`}
             className="input"
             type="time"
-            value={gia.thoiHan}
-            aria-invalid={loi?.field === "thoiHan" || undefined}
-            onChange={(e) => setGia({ ...gia, thoiHan: e.target.value })}
+            value={gia.gioBatDau}
+            aria-invalid={loi?.field === "gioBatDau" || undefined}
+            onChange={(e) => setGia({ ...gia, gioBatDau: e.target.value })}
+          />
+        </div>
+        <div className="field narrow">
+          <label htmlFor={`${idForm}-gio-ket-thuc`}>Đến</label>
+          <input
+            id={`${idForm}-gio-ket-thuc`}
+            className="input"
+            type="time"
+            value={gia.gioKetThuc}
+            min={gia.gioBatDau || undefined}
+            aria-invalid={loi?.field === "gioKetThuc" || khungGioSai || undefined}
+            onChange={(e) => setGia({ ...gia, gioKetThuc: e.target.value })}
           />
         </div>
       </div>
+
+      {khungGioSai ? (
+        <p className="field-error" role="alert">
+          {LOI_KHUNG_GIO.message}
+        </p>
+      ) : null}
 
       <div className="field">
         <span id={`${idForm}-nhan-uu-tien`} className="nhan-uu-tien">
@@ -422,7 +627,7 @@ function FormTaskNgay({
       ) : null}
 
       <div className="form-actions">
-        <button className="btn" type="submit" disabled={dangGui}>
+        <button className="btn" type="submit" disabled={dangGui || khungGioSai}>
           {nhanLuu}
         </button>
         <button

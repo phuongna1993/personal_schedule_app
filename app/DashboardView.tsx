@@ -3,6 +3,7 @@ import NutDoiTheme from "@/app/NutDoiTheme";
 import { formatNgayVN, thamSoNgayVN } from "@/lib/ngayVn";
 import { type CanhBaoNganSach, xacDinhTrangThaiNganSach } from "./chi-tieu/model";
 import type { KyNangEnum, LoTrinhDuLieu } from "./hoc-tap/queries";
+import { nhanKhungGio } from "./lich-trinh/model";
 import type { LichTrinhNgayDuLieu, MucUuTien } from "./lich-trinh/queries";
 import type { ThucDonNgayDuLieu } from "./thuc-don/queries";
 
@@ -150,7 +151,7 @@ function TheLichTrinh({ lichTrinh }: { lichTrinh: LichTrinhNgayDuLieu }) {
   const { tasks, soDaXong, tongSo } = lichTrinh;
   const phanTram = tongSo === 0 ? 0 : Math.round((soDaXong / tongSo) * 100);
   // Task CHƯA xong luôn hiện trước Task đã xong trong danh sách bị cắt —
-  // sort ổn định (giữ nguyên thứ tự thoiHan/id trong từng nhóm) chỉ đổi chỗ
+  // sort ổn định (giữ nguyên thứ tự gioBatDau/id trong từng nhóm) chỉ đổi chỗ
   // theo daXong, tránh việc 5 Task ĐÃ xong sớm nhất trong ngày che mất những
   // Task CHƯA xong muộn hơn (mục đích của thẻ là "còn gì phải làm hôm nay").
   const hienThi = [...tasks]
@@ -184,7 +185,7 @@ function TheLichTrinh({ lichTrinh }: { lichTrinh: LichTrinhNgayDuLieu }) {
                   NHAN_MUC_UU_TIEN_HOM_NAY[task.mucUuTien]
                 }, ${task.daXong ? "đã xong" : "chưa xong"}`}
               />
-              <span className="ttime">{task.thoiHan}</span>
+              <span className="ttime khung">{nhanKhungGio(task)}</span>
               <span className="tname">{task.ten}</span>
               <span
                 className={`badge-pri ${LOP_BADGE_UU_TIEN_HOM_NAY[task.mucUuTien]}`}

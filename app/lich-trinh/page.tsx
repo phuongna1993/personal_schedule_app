@@ -11,6 +11,7 @@ import {
 } from "@/lib/ngayVn";
 import { taoLichTrinhNgayTuMau } from "./actions";
 import LichTrinhNgayView from "./LichTrinhNgayView";
+import { SO_NGAY_LEN_LICH_TRUOC_TOI_DA } from "./model";
 import { layLichTrinhNgay, layNgaySomNhat } from "./queries";
 
 export const metadata: Metadata = {
@@ -47,24 +48,33 @@ export default async function TrangLichTrinhNgay({
 
   const ngaySomNhat = await layNgaySomNhat();
 
+  // Ngày xa nhất được lên lịch trước (xem `SO_NGAY_LEN_LICH_TRUOC_TOI_DA`).
+  const ngayXaNhat = themNgay(homNay, SO_NGAY_LEN_LICH_TRUOC_TOI_DA);
+
   // `?ngay=` là input người dùng tự gõ lên URL — kẹp lại vào đúng khoảng cho
-  // phép điều hướng (giữa hàng LichTrinhNgay sớm nhất đang có và hôm nay)
-  // ngay ở đây, không chỉ dựa vào việc UI có render link ◀/▶ hay không.
-  if (ngayXem.getTime() > homNay.getTime()) {
-    ngayXem = homNay;
+  // phép điều hướng (giữa hàng LichTrinhNgay sớm nhất đang có và ngày xa
+  // nhất được lên lịch trước) ngay ở đây, không chỉ dựa vào việc UI có render
+  // link ◀/▶ hay không.
+  if (ngayXem.getTime() > ngayXaNhat.getTime()) {
+    ngayXem = ngayXaNhat;
   } else if (ngaySomNhat !== null && ngayXem.getTime() < ngaySomNhat.getTime()) {
     ngayXem = ngaySomNhat;
   }
 
   const duLieuNgay = await layLichTrinhNgay(ngayXem);
 
-  // ◀/▶ chỉ di chuyển giữa hàng LichTrinhNgay sớm nhất đang có và hôm nay —
-  // không bao giờ được lùi qua ngày chưa từng tạo, không được tiến qua hôm
-  // nay (chỉ hôm nay mới tự khởi tạo, xem Boundaries của story).
+  // ◀ không bao giờ lùi qua hàng LichTrinhNgay sớm nhất đang có (quá khứ đã
+  // bỏ qua không được tạo bù). ▶ được tiến qua hôm nay để lên lịch trước cho
+  // ngày tương lai — nhưng chỉ HÔM NAY tự khởi tạo; ngày tương lai chỉ tạo
+  // khi bấm "Lên lịch cho ngày này" (`lenLichNgayTuongLai`), không tự tạo
+  // chỉ vì lướt qua.
   const coTheLui =
     ngaySomNhat !== null && duLieuNgay.ngay.getTime() > ngaySomNhat.getTime();
-  const coTheToi = duLieuNgay.ngay.getTime() < homNay.getTime();
+  const coTheToi = duLieuNgay.ngay.getTime() < ngayXaNhat.getTime();
   const laHomNay = duLieuNgay.ngay.getTime() === homNay.getTime();
+  const laTuongLai = duLieuNgay.ngay.getTime() > homNay.getTime();
+  const laNgayMai =
+    duLieuNgay.ngay.getTime() === themNgay(homNay, 1).getTime();
 
   const hrefTruoc = coTheLui
     ? `/lich-trinh?ngay=${thamSoNgayVN(themNgay(duLieuNgay.ngay, -1))}`
@@ -75,7 +85,9 @@ export default async function TrangLichTrinhNgay({
 
   const nhanNgay = laHomNay
     ? `Hôm nay · ${formatNgayVN(duLieuNgay.ngay)}`
-    : formatNgayVN(duLieuNgay.ngay);
+    : laNgayMai
+      ? `Ngày mai · ${formatNgayVN(duLieuNgay.ngay)}`
+      : formatNgayVN(duLieuNgay.ngay);
 
   return (
     <main className="screen">
@@ -98,12 +110,15 @@ export default async function TrangLichTrinhNgay({
 
       <LichTrinhNgayView
         lichTrinhNgayId={duLieuNgay.id}
+        ghiChu={duLieuNgay.ghiChu}
         tonTai={duLieuNgay.tonTai}
         tasks={duLieuNgay.tasks}
         soDaXong={duLieuNgay.soDaXong}
         tongSo={duLieuNgay.tongSo}
         nhanNgay={nhanNgay}
         laHomNay={laHomNay}
+        laTuongLai={laTuongLai}
+        ngayThamSo={thamSoNgayVN(duLieuNgay.ngay)}
         hrefTruoc={hrefTruoc}
         hrefSau={hrefSau}
       />

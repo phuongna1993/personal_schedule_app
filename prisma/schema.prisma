@@ -37,10 +37,15 @@ model Task {
   /// Tên việc — bắt buộc, không được rỗng.
   ten String
 
-  /// Thời hạn: một khung giờ TRONG chính ngày đó, dạng "HH:mm" (24h).
-  /// Lưu String thay vì DateTime vì đây là time-of-day không gắn với một ngày
-  /// cụ thể nào — Mẫu là bản cấu hình, không phải dữ liệu của một ngày.
-  thoiHan String
+  /// Khung giờ TRONG chính ngày đó: từ `gioBatDau` đến `gioKetThuc`, dạng
+  /// "HH:mm" (24h). Lưu String thay vì DateTime vì đây là time-of-day không
+  /// gắn với một ngày cụ thể nào — Mẫu là bản cấu hình, không phải dữ liệu của
+  /// một ngày. `gioKetThuc` phải sau `gioBatDau`, không vắt qua nửa đêm (chặn
+  /// ở `kiemTraTask()`, app/lich-trinh/actions.ts). `gioKetThuc` nullable chỉ
+  /// để giữ các Task tạo trước khi có trường này (khi đó chỉ có một mốc giờ);
+  /// mọi lần thêm/sửa mới đều bắt buộc có.
+  gioBatDau  String
+  gioKetThuc String?
 
   /// Mức ưu tiên: "Cao" | "TrungBinh" | "Thap".
   /// SQLite không hỗ trợ enum trong Prisma, nên lưu String và ép ràng buộc ở
@@ -65,6 +70,11 @@ model LichTrinhNgay {
   /// qua `layMocNgayVN()` ở `lib/ngayVn.ts`, không bao giờ dùng giờ UTC làm mốc.
   ngay DateTime @unique
 
+  /// Ghi chú tự do cho cả ngày — note lại những điều đã làm. Tuỳ chọn, tối đa
+  /// 5000 ký tự (chặn ở `luuGhiChuNgay()`, app/lich-trinh/actions.ts); rỗng
+  /// lưu `null`. Không copy từ Mẫu — chỉ thuộc về đúng ngày này.
+  ghiChu String?
+
   tasks TaskNgay[]
 }
 
@@ -74,9 +84,11 @@ model LichTrinhNgay {
 model TaskNgay {
   id Int @id @default(autoincrement())
 
-  ten       String
-  thoiHan   String
-  mucUuTien String
+  ten        String
+  /// Cùng ý nghĩa/ràng buộc với `Task.gioBatDau`/`Task.gioKetThuc`.
+  gioBatDau  String
+  gioKetThuc String?
+  mucUuTien  String
 
   /// Đã xong / Chưa xong — check-off một-cú-bấm, không có bước xác nhận (FR-3).
   daXong Boolean @default(false)

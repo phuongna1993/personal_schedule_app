@@ -34,18 +34,41 @@ export function laMucUuTien(giaTri: unknown): giaTri is MucUuTien {
   );
 }
 
-/** Thời hạn là một khung giờ TRONG ngày, dạng "HH:mm" 24h. */
-const REGEX_THOI_HAN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/** Một mốc giờ TRONG ngày, dạng "HH:mm" 24h. */
+const REGEX_GIO = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-export function laThoiHan(giaTri: unknown): giaTri is string {
-  return typeof giaTri === "string" && REGEX_THOI_HAN.test(giaTri);
+export function laGio(giaTri: unknown): giaTri is string {
+  return typeof giaTri === "string" && REGEX_GIO.test(giaTri);
+}
+
+/**
+ * Khung giờ Từ ~ Đến có hợp lệ không: cả hai đúng dạng "HH:mm" và giờ kết
+ * thúc STRICTLY sau giờ bắt đầu. Hai mốc cùng một ngày nên `ketThuc <=
+ * batDau` cũng chính là trường hợp vắt qua nửa đêm (vd 23:00 ~ 01:00) — bị
+ * chặn luôn, không wraparound. Dùng chung cho `kiemTraTask()` (server, nguồn
+ * kiểm tra chính thức) và form (client, chỉ để báo sớm). So sánh chuỗi
+ * "HH:mm" zero-padded đúng bằng so sánh thời gian.
+ */
+export function laKhungGioHopLe(gioBatDau: string, gioKetThuc: string): boolean {
+  return laGio(gioBatDau) && laGio(gioKetThuc) && gioKetThuc > gioBatDau;
+}
+
+/** Nhãn hiển thị khung giờ: "06:30 – 07:00", hoặc chỉ "06:30" cho Task cũ
+ * tạo trước khi có giờ kết thúc. */
+export function nhanKhungGio(task: {
+  gioBatDau: string;
+  gioKetThuc: string | null;
+}): string {
+  return task.gioKetThuc ? `${task.gioBatDau} – ${task.gioKetThuc}` : task.gioBatDau;
 }
 
 /** Một Task mặc định trong Mẫu lịch trình, đã chuẩn hoá kiểu cho UI. */
 export type TaskMau = {
   id: number;
   ten: string;
-  thoiHan: string;
+  gioBatDau: string;
+  /** `null` chỉ với Task cũ tạo trước khi có trường này. */
+  gioKetThuc: string | null;
   mucUuTien: MucUuTien;
 };
 
@@ -58,3 +81,8 @@ export type TaskMau = {
 export type TaskNgay = TaskMau & {
   daXong: boolean;
 };
+
+/** Được lên lịch trước tối đa bao nhiêu ngày tính từ hôm nay (giờ VN). Dùng
+ * chung cho giới hạn điều hướng ▶ (`/lich-trinh/page.tsx`) và
+ * `lenLichNgayTuongLai()` (actions.ts) — chặn URL/payload tự gõ ngày quá xa. */
+export const SO_NGAY_LEN_LICH_TRUOC_TOI_DA = 365;

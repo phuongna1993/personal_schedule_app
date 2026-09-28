@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *  1. Chưa có hàng `MauLichTrinh` (lần chạy đầu) -> `[]`, và KHÔNG ghi gì (AD-3).
  *  2. `mucUuTien` lưu trong DB nằm ngoài union cố định -> chuẩn hoá về
  *     "TrungBinh" ở biên đọc (cột là String vì SQLite không có enum).
- *  3. Sắp xếp theo `thoiHan` tăng dần, rồi `id` tăng dần.
+ *  3. Sắp xếp theo `gioBatDau` tăng dần, rồi `id` tăng dần.
  *
  * Prisma được mock để test chạy thuần in-memory, không đụng `app-data/db.sqlite`.
  */
@@ -53,9 +53,9 @@ describe("layMauLichTrinh", () => {
     prismaMock.mauLichTrinh.findFirst.mockResolvedValue({
       id: 1,
       tasks: [
-        { id: 1, ten: "Rác", thoiHan: "07:00", mucUuTien: "Khẩn cấp" },
-        { id: 2, ten: "Rỗng", thoiHan: "08:00", mucUuTien: "" },
-        { id: 3, ten: "Hợp lệ", thoiHan: "09:00", mucUuTien: "Cao" },
+        { id: 1, ten: "Rác", gioBatDau: "07:00", mucUuTien: "Khẩn cấp" },
+        { id: 2, ten: "Rỗng", gioBatDau: "08:00", mucUuTien: "" },
+        { id: 3, ten: "Hợp lệ", gioBatDau: "09:00", mucUuTien: "Cao" },
       ],
     });
 
@@ -68,7 +68,7 @@ describe("layMauLichTrinh", () => {
     ]);
   });
 
-  it("yêu cầu Prisma sắp theo thoiHan tăng dần rồi id tăng dần", async () => {
+  it("yêu cầu Prisma sắp theo gioBatDau tăng dần rồi id tăng dần", async () => {
     prismaMock.mauLichTrinh.findFirst.mockResolvedValue({ id: 1, tasks: [] });
 
     await layMauLichTrinh();
@@ -77,28 +77,28 @@ describe("layMauLichTrinh", () => {
       expect.objectContaining({
         include: {
           tasks: {
-            orderBy: [{ thoiHan: "asc" }, { id: "asc" }],
+            orderBy: [{ gioBatDau: "asc" }, { id: "asc" }],
           },
         },
       }),
     );
   });
 
-  it("giữ nguyên thứ tự Prisma trả về (thoiHan tăng dần, rồi id tăng dần)", async () => {
+  it("giữ nguyên thứ tự Prisma trả về (gioBatDau tăng dần, rồi id tăng dần)", async () => {
     // Prisma đã sắp sẵn; test khẳng định hàm đọc không đảo lại thứ tự đó.
     prismaMock.mauLichTrinh.findFirst.mockResolvedValue({
       id: 1,
       tasks: [
-        { id: 9, ten: "Sớm", thoiHan: "06:30", mucUuTien: "Cao" },
-        { id: 2, ten: "Trùng giờ A", thoiHan: "08:00", mucUuTien: "Thap" },
-        { id: 5, ten: "Trùng giờ B", thoiHan: "08:00", mucUuTien: "Thap" },
-        { id: 1, ten: "Muộn", thoiHan: "21:45", mucUuTien: "TrungBinh" },
+        { id: 9, ten: "Sớm", gioBatDau: "06:30", mucUuTien: "Cao" },
+        { id: 2, ten: "Trùng giờ A", gioBatDau: "08:00", mucUuTien: "Thap" },
+        { id: 5, ten: "Trùng giờ B", gioBatDau: "08:00", mucUuTien: "Thap" },
+        { id: 1, ten: "Muộn", gioBatDau: "21:45", mucUuTien: "TrungBinh" },
       ],
     });
 
     const tasks = await layMauLichTrinh();
 
-    expect(tasks.map((t) => [t.thoiHan, t.id])).toEqual([
+    expect(tasks.map((t) => [t.gioBatDau, t.id])).toEqual([
       ["06:30", 9],
       ["08:00", 2],
       ["08:00", 5],
@@ -134,9 +134,9 @@ describe("layLichTrinhNgay", () => {
       id: 7,
       ngay: layMocNgayVN(),
       tasks: [
-        { id: 1, ten: "A", thoiHan: "07:00", mucUuTien: "Cao", daXong: true },
-        { id: 2, ten: "B", thoiHan: "08:00", mucUuTien: "Thap", daXong: false },
-        { id: 3, ten: "C", thoiHan: "09:00", mucUuTien: "Cao", daXong: true },
+        { id: 1, ten: "A", gioBatDau: "07:00", mucUuTien: "Cao", daXong: true },
+        { id: 2, ten: "B", gioBatDau: "08:00", mucUuTien: "Thap", daXong: false },
+        { id: 3, ten: "C", gioBatDau: "09:00", mucUuTien: "Cao", daXong: true },
       ],
     });
 
@@ -153,7 +153,7 @@ describe("layLichTrinhNgay", () => {
       id: 1,
       ngay: layMocNgayVN(),
       tasks: [
-        { id: 1, ten: "Rác", thoiHan: "07:00", mucUuTien: "Khẩn cấp", daXong: false },
+        { id: 1, ten: "Rác", gioBatDau: "07:00", mucUuTien: "Khẩn cấp", daXong: false },
       ],
     });
 
@@ -188,7 +188,7 @@ describe("layLichTrinhNgay", () => {
     prismaMock.lichTrinhNgay.findUnique.mockResolvedValue({
       id: 2,
       ngay: homQua,
-      tasks: [{ id: 1, ten: "Việc cũ", thoiHan: "06:00", mucUuTien: "Cao", daXong: true }],
+      tasks: [{ id: 1, ten: "Việc cũ", gioBatDau: "06:00", mucUuTien: "Cao", daXong: true }],
     });
 
     const du = await layLichTrinhNgay(homQua);
@@ -200,7 +200,7 @@ describe("layLichTrinhNgay", () => {
     expect(du.soDaXong).toBe(1);
   });
 
-  it("yêu cầu Prisma sắp Task theo thoiHan tăng dần rồi id tăng dần", async () => {
+  it("yêu cầu Prisma sắp Task theo gioBatDau tăng dần rồi id tăng dần", async () => {
     prismaMock.lichTrinhNgay.findUnique.mockResolvedValue({
       id: 1,
       ngay: layMocNgayVN(),
@@ -213,7 +213,7 @@ describe("layLichTrinhNgay", () => {
       expect.objectContaining({
         include: {
           tasks: {
-            orderBy: [{ thoiHan: "asc" }, { id: "asc" }],
+            orderBy: [{ gioBatDau: "asc" }, { id: "asc" }],
           },
         },
       }),
