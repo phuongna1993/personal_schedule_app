@@ -89,10 +89,13 @@ select {
 
 /* --------------------------------------------------------------- layout -- */
 
+/* 1280px — đủ rộng để màn hình lớn không thừa hai khoảng trống lớn hai bên,
+   vẫn giữ độ dài dòng đọc được. Padding ngang co theo viewport (16px trên
+   điện thoại → 40px trên desktop). */
 .screen {
-  max-width: 900px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 32px 40px 44px;
+  padding: 32px clamp(16px, 4vw, 40px) 44px;
 }
 
 .app-header {
