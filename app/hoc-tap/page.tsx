@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import NutDoiTheme from "@/app/NutDoiTheme";
+import NutVeHome from "@/app/NutVeHome";
 import {
   formatThangVN,
   layMocDauThangKeTiepVN,
@@ -122,6 +123,7 @@ export default async function TrangHocTap({
           </p>
         </div>
         <div className="header-tools">
+          <NutVeHome />
           <NutDoiTheme />
         </div>
       </div>

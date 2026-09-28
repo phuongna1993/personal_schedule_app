@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import NutDoiTheme from "@/app/NutDoiTheme";
+import NutVeHome from "@/app/NutVeHome";
 import { formatNgayVN, layMocNgayVN, thamSoNgayVN, themNgay, tuThamSoNgay } from "@/lib/ngayVn";
 import NganHangMonAnView from "./NganHangMonAnView";
 import { layDanhSachMonAn, layDanhSachNguyenLieuDuyNhat, layThucDonNgay } from "../queries";
@@ -71,6 +72,7 @@ export default async function TrangChonMon({
           </p>
         </div>
         <div className="header-tools">
+          <NutVeHome />
           <NutDoiTheme />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import NutDoiTheme from "@/app/NutDoiTheme";
+import NutVeHome from "@/app/NutVeHome";
 import {
   formatNgayVN,
   layMocNgayVN,
@@ -90,6 +91,7 @@ export default async function TrangLichTrinhNgay({
           </p>
         </div>
         <div className="header-tools">
+          <NutVeHome />
           <NutDoiTheme />
         </div>
       </div>

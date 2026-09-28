@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import NutDoiTheme from "@/app/NutDoiTheme";
+import NutVeHome from "@/app/NutVeHome";
 import { layMauLichTrinh } from "../queries";
 import TrinhSoanThaoMau from "./TrinhSoanThaoMau";
 
@@ -38,6 +39,7 @@ export default async function TrangMauLichTrinh() {
           </p>
         </div>
         <div className="header-tools">
+          <NutVeHome />
           <NutDoiTheme />
         </div>
       </div>

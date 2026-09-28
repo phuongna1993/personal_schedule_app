@@ -160,6 +160,11 @@ select {
   border-color: var(--accent);
 }
 
+/* `NutVeHome` — cùng hình nút tròn với `.theme-toggle` nhưng là `<a>`. */
+.home-btn {
+  text-decoration: none;
+}
+
 /* ------------------------------------------------------------ callouts -- */
 
 .info-box {
