@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Cho phép mở dev server qua IP LAN (vd. từ điện thoại). Thiếu dòng này,
+  // Next chặn JS chunk/HMR từ origin khác localhost → trang không hydrate,
+  // mọi nút client (vd. "Thêm món mới") bấm không phản hồi.
+  allowedDevOrigins: ["192.168.50.76"],
   experimental: {
     serverActions: {
       // Mặc định 1MB — quá nhỏ cho `themMonAn`/`suaMonAn` (module Thực đơn,
